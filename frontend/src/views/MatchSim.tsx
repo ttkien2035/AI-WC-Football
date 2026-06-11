@@ -291,7 +291,7 @@ function CornersPanel({ pred }: { pred: Prediction }) {
       </div>
       <div className="mt-2 flex flex-wrap gap-1 text-xs">
         {Object.entries(c.over).map(([k, v]) => (
-          <span key={k} className="rounded bg-slate-200 px-1.5 py-0.5 tabular-nums dark:bg-slate-800">
+          <span key={k} className="rounded bg-slate-200 px-1.5 py-0.5 tabular-nums dark:bg-white/[0.07]">
             {k.replace("h1_", `${t("match.h1")} O`).replace("ft_", "FT O")}: {pct(v)}
           </span>
         ))}
@@ -353,7 +353,7 @@ function AnalysisPanel({ ana }: { ana: Analysis }) {
           if (!d) return null;
           const formation = d.formation_live ?? d.profile.formation;
           return (
-            <div key={tla} className="rounded-xl bg-slate-100 p-2.5 text-xs dark:bg-slate-800">
+            <div key={tla} className="rounded-xl bg-slate-100 p-2.5 text-xs dark:bg-white/[0.07]">
               <p className="mb-1 font-bold">{tla}
                 {formation && (
                   <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
@@ -432,7 +432,7 @@ const CompRow = ({ name, w, v }: { name: string; w: number; v: Record<string, nu
 );
 
 const Stat = ({ title, value }: { title: string; value: string }) => (
-  <div className="rounded-xl bg-slate-100 p-2.5 text-center dark:bg-slate-800">
+  <div className="rounded-xl bg-slate-100 p-2.5 text-center dark:bg-white/[0.07]">
     <p className="text-[10px] uppercase tracking-wide text-slate-400">{title}</p>
     <p className="text-base font-bold tabular-nums">{value}</p>
   </div>
