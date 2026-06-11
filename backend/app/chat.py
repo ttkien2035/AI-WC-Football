@@ -8,6 +8,7 @@
 """
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import httpx
@@ -20,6 +21,30 @@ log = logging.getLogger("chat")
 
 GEMINI = "https://generativelanguage.googleapis.com/v1beta/models"
 MAX_TOOL_ROUNDS = 3
+KEY_COOLDOWN_S = 6 * 3600     # quota-hit keys sit out; free RPD resets daily
+
+
+# ── API-key pool with quota failover ─────────────────────────────────────
+def available_keys() -> list[tuple[int, str]]:
+    """(index, key) pairs not in cooldown; if all are cooling, return all
+    (quota may have reset)."""
+    keys = settings.gemini_keys()
+    fresh = []
+    for i, k in enumerate(keys):
+        ts, _ = cache.get_stale(f"gemini:cooldown:{i}")
+        if ts and time.time() - float(ts) < KEY_COOLDOWN_S:
+            continue
+        fresh.append((i, k))
+    return fresh or list(enumerate(keys))
+
+
+def mark_exhausted(idx: int) -> None:
+    log.warning("gemini key #%d quota-exhausted — cooling down 6h", idx)
+    cache.put(f"gemini:cooldown:{idx}", time.time())
+
+
+def _is_quota_error(status: int, body: str) -> bool:
+    return status == 429 or (status == 403 and "RESOURCE_EXHAUSTED" in body)
 
 # ── team name resolver (vi/en aliases) ──────────────────────────────────
 VI_ALIASES = {
@@ -232,17 +257,25 @@ def _mt(m: dict) -> dict:
 async def _news(query: str) -> dict:
     """Sub-call with Google Search grounding (can't mix with function tools)."""
     try:
+        d = None
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.post(
-                f"{GEMINI}/{settings.chat_model}:generateContent",
-                headers={"x-goog-api-key": settings.gemini_api_key},
-                json={"contents": [{"parts": [{"text":
-                      f"Summarize in <=120 words the latest football news about: {query}"}]}],
-                      "tools": [{"google_search": {}}],
-                      "generationConfig": {"maxOutputTokens": 256,
-                                           "thinkingConfig": {"thinkingBudget": 0}}})
-            r.raise_for_status()
-            d = r.json()
+            for idx, key in available_keys():
+                r = await client.post(
+                    f"{GEMINI}/{settings.chat_model}:generateContent",
+                    headers={"x-goog-api-key": key},
+                    json={"contents": [{"parts": [{"text":
+                          f"Summarize in <=120 words the latest football news about: {query}"}]}],
+                          "tools": [{"google_search": {}}],
+                          "generationConfig": {"maxOutputTokens": 256,
+                                               "thinkingConfig": {"thinkingBudget": 0}}})
+                if _is_quota_error(r.status_code, r.text):
+                    mark_exhausted(idx)
+                    continue
+                r.raise_for_status()
+                d = r.json()
+                break
+        if d is None:
+            return {"error": "news search quota exhausted on all keys"}
         parts = d["candidates"][0]["content"]["parts"]
         text = " ".join(p.get("text", "") for p in parts)
         cites = []
@@ -390,19 +423,29 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
                 body["tools"] = tools
 
             fn_calls, model_parts = [], []
+            # try each available key until one accepts the request (failover
+            # happens at header time — nothing has streamed yet, safe to retry)
+            stream_ok = False
+            last_status = 0
             try:
-                async with client.stream(
-                    "POST",
-                    f"{GEMINI}/{settings.chat_model}:streamGenerateContent",
-                    params={"alt": "sse"},
-                    headers={"x-goog-api-key": settings.gemini_api_key},
-                    json=body,
-                ) as resp:
+                for idx, key in available_keys():
+                    resp_cm = client.stream(
+                        "POST",
+                        f"{GEMINI}/{settings.chat_model}:streamGenerateContent",
+                        params={"alt": "sse"},
+                        headers={"x-goog-api-key": key},
+                        json=body)
+                    resp = await resp_cm.__aenter__()
                     if resp.status_code != 200:
-                        detail = (await resp.aread())[:200].decode(errors="ignore")
-                        log.warning("gemini %s: %s", resp.status_code, detail)
-                        yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
-                        return
+                        detail = (await resp.aread())[:300].decode(errors="ignore")
+                        await resp_cm.__aexit__(None, None, None)
+                        last_status = resp.status_code
+                        if _is_quota_error(resp.status_code, detail):
+                            mark_exhausted(idx)
+                            continue
+                        log.warning("gemini %s: %s", resp.status_code, detail[:200])
+                        break
+                    stream_ok = True
                     async for line in resp.aiter_lines():
                         if not line.startswith("data:"):
                             continue
@@ -420,8 +463,15 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
                                 for piece in _emit_deltas(part["text"]):
                                     yield json.dumps({"type": "delta",
                                                       "text": piece}) + "\n"
+                    await resp_cm.__aexit__(None, None, None)
+                    break          # streamed successfully — stop trying keys
             except httpx.HTTPError as e:
                 log.warning("gemini stream error: %s", e)
+                yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
+                return
+
+            if not stream_ok:
+                log.warning("all gemini keys failed (last status %s)", last_status)
                 yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
                 return
 

@@ -195,7 +195,7 @@ class ChatBody(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(body: ChatBody, request: Request):
     from . import chat
-    if not settings.gemini_api_key:
+    if not settings.gemini_keys():
         raise HTTPException(503, "chat not configured")
     ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "noip")
     gen = chat.stream_chat(body.v, ip, body.message, body.skill,
@@ -211,7 +211,7 @@ async def chat_quota(v: str, request: Request):
     ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "noip")
     allowed, remaining = chat.check_quota(v, ip)
     live = any(m["status"] in service.LIVE_STATUSES for m in await service.get_matches())
-    return {"enabled": bool(settings.gemini_api_key),
+    return {"enabled": bool(settings.gemini_keys()),
             "allowed": allowed, "remaining": remaining, "live_now": live}
 
 

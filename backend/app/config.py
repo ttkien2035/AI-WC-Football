@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     admin_token: str = ""      # gates /api/pipeline/*, /api/refresh, /api/ml/retrain
     gemini_api_key: str = Field(
         default="", validation_alias=AliasChoices("GEMINI_API", "GEMINI_API_KEY"))
+    gemini_api_key_1: str = Field(default="", validation_alias=AliasChoices("GEMINI_API_1"))
+    gemini_api_key_2: str = Field(default="", validation_alias=AliasChoices("GEMINI_API_2"))
+    gemini_api_key_3: str = Field(default="", validation_alias=AliasChoices("GEMINI_API_3"))
+    gemini_api_key_4: str = Field(default="", validation_alias=AliasChoices("GEMINI_API_4"))
+
+    def gemini_keys(self) -> list[str]:
+        """All configured keys, primary first — chat rotates on quota errors."""
+        return [k for k in (self.gemini_api_key, self.gemini_api_key_1,
+                            self.gemini_api_key_2, self.gemini_api_key_3,
+                            self.gemini_api_key_4) if k]
 
     # AI chat (cost control)
     chat_model: str = "gemini-2.5-flash"
