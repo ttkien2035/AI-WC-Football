@@ -107,13 +107,25 @@ _IT_RED = {44, 45, 46}               # second yellow / straight red variants
 
 
 def _player_name(obj: dict) -> str | None:
+    """Only string fields count — in live incident payloads `Nm` is the TEAM
+    number (1=home, 2=away), not a name (verified vs MEX-RSA opener)."""
     for k in ("Pn", "Nm", "Name"):
-        if obj.get(k):
-            return str(obj[k])
+        v = obj.get(k)
+        if isinstance(v, str) and v.strip() and not v.strip().isdigit():
+            return v
     fn, ln = obj.get("Fn"), obj.get("Ln")
     if fn or ln:
-        return " ".join(x for x in (fn, ln) if x)
+        return " ".join(str(x) for x in (fn, ln) if x)
     return None
+
+
+def _side_of(obj: dict, default: str = "?") -> str:
+    """Side from Tnb or numeric Nm (both use 1=home, 2=away)."""
+    for k in ("Tnb", "Nm"):
+        v = obj.get(k)
+        if v in (1, 2, "1", "2"):
+            return "home" if int(v) == 1 else "away"
+    return default
 
 
 def _walk_incidents(node, side: str, out: list) -> None:
@@ -125,6 +137,7 @@ def _walk_incidents(node, side: str, out: list) -> None:
         return
     if not isinstance(node, dict):
         return
+    side = _side_of(node, default=side)
     it = node.get("IT")
     minute = node.get("Min")
     if isinstance(it, int):
@@ -157,9 +170,7 @@ async def incidents(eid) -> list[dict]:
     if isinstance(incs, dict):
         for period in incs.values():
             for entry in (period if isinstance(period, list) else []):
-                side = "home" if entry.get("Tnb") == 1 else (
-                    "away" if entry.get("Tnb") == 2 else "?")
-                _walk_incidents(entry, side, out)
+                _walk_incidents(entry, _side_of(entry), out)
     else:  # alternate shapes
         for key, side in (("IncsH", "home"), ("IncsA", "away"),
                           ("T1", "home"), ("T2", "away")):
