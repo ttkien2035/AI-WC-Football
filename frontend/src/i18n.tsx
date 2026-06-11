@@ -247,6 +247,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "chat.chip_value": { vi: "Soi kèo value hôm nay", en: "Find today's value bets" },
   "chat.chip_title": { vi: "Đội nào dễ vô địch nhất?", en: "Who's most likely to win it all?" },
   "chat.chip_whatif": { vi: "Nếu {m} có kết quả sốc thì sao?", en: "What if {m} ends in a shock?" },
+  "chat.fab_label": { vi: "Hỏi AI", en: "Ask AI" },
+  "chat.teaser": { vi: "👋 Hỏi tôi về bất kỳ trận đấu nào — dự đoán, kèo, kịch bản!", en: "👋 Ask me about any match — predictions, odds, what-ifs!" },
 
   // common
   "common.loading": { vi: "Đang tải…", en: "Loading…" },

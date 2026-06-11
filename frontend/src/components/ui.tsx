@@ -7,7 +7,7 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
-      className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 ${className}`}
+      className={`rounded-2xl border border-slate-200/80 bg-white/85 p-4 shadow-sm backdrop-blur-md transition-shadow duration-300 hover:shadow-lg hover:shadow-emerald-500/10 dark:border-white/10 dark:bg-white/[0.045] dark:shadow-black/30 ${className}`}
     >
       {children}
     </motion.div>
@@ -18,12 +18,12 @@ export function ProbBar({ p, color = "bg-emerald-500", label }: { p: number; col
   return (
     <div className="flex items-center gap-2">
       {label && <span className="w-16 shrink-0 text-xs text-slate-500 dark:text-slate-400">{label}</span>}
-      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+      <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${Math.min(100, p * 100)}%` }}
           transition={{ duration: 0.5, ease: "easeOut" }}
-          className={`h-full rounded-full ${color}`}
+          className={`h-full rounded-full ${color} shadow-[0_0_10px] shadow-current/50`}
         />
       </div>
       <span className="w-12 shrink-0 text-right text-xs font-semibold tabular-nums">

@@ -86,12 +86,12 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 pb-16">
-      <header className="sticky top-0 z-10 -mx-4 mb-4 border-b border-slate-200 bg-gradient-to-r from-emerald-50 via-slate-100 to-sky-50 px-4 py-3 backdrop-blur dark:border-slate-800 dark:from-emerald-950/60 dark:via-slate-950 dark:to-sky-950/60">
+      <header className="sticky top-0 z-10 -mx-4 mb-4 border-b border-slate-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#060913]/75">
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
-            <Trophy className="text-amber-500" size={24} />
+            <Trophy className="text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" size={24} />
             {t("app.title")}{" "}
-            <span className="hidden bg-gradient-to-r from-emerald-500 to-sky-500 bg-clip-text text-transparent sm:inline">
+            <span className="title-gradient hidden sm:inline">
               {t("app.subtitle")}
             </span>
             {live.length > 0 && (
@@ -150,8 +150,8 @@ export default function App() {
             <button key={x.id} onClick={() => switchTab(x.id)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
                 tab === x.id
-                  ? "bg-emerald-600 text-white shadow"
-                  : "text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"
+                  ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-600/40"
+                  : "text-slate-500 hover:bg-slate-200/80 dark:text-slate-400 dark:hover:bg-white/10"
               }`}>
               {t(x.key)}
             </button>

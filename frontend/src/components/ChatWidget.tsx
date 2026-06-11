@@ -42,7 +42,23 @@ export default function ChatWidget() {
   const [followups, setFollowups] = useState<string[]>([]);
   const [todayMatch, setTodayMatch] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
+  const [teaser, setTeaser] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // first-visit teaser bubble: appears after 2.5s, once per browser
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("chat_teaser_seen")) {
+        const id = setTimeout(() => setTeaser(true), 2500);
+        return () => clearTimeout(id);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  const dismissTeaser = () => {
+    setTeaser(false);
+    try { localStorage.setItem("chat_teaser_seen", "1"); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     fetch(`/api/chat/quota?v=${getVisitorId()}`)
@@ -133,21 +149,55 @@ export default function ChatWidget() {
 
   return (
     <>
-      {/* FAB */}
-      <motion.button
-        onClick={() => setOpen(!open)}
-        whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
-        className="fixed bottom-5 right-5 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-sky-500 text-2xl shadow-lg shadow-emerald-500/30"
-        title={t("chat.title")}
-      >
-        {open ? <X className="text-white" size={22} /> : "⚽"}
-        {!open && liveNow && (
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 animate-pulse rounded-full border-2 border-white bg-red-500" />
+      {/* first-visit teaser bubble */}
+      <AnimatePresence>
+        {teaser && !open && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            className="fixed bottom-24 right-5 z-50 max-w-[260px] cursor-pointer rounded-2xl rounded-br-sm border border-emerald-300/50 bg-white p-3 text-sm shadow-xl shadow-emerald-500/20 dark:border-emerald-700/60 dark:bg-slate-900"
+            onClick={() => { dismissTeaser(); setOpen(true); }}
+          >
+            {t("chat.teaser")}
+            <button
+              onClick={(e) => { e.stopPropagation(); dismissTeaser(); }}
+              className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] text-slate-500 dark:bg-slate-700 dark:text-slate-300"
+            >✕</button>
+          </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* FAB + persistent label */}
+      <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2">
         {!open && (
-          <Sparkles size={14} className="absolute -left-1 -top-1 text-amber-300" />
+          <motion.button
+            onClick={() => { dismissTeaser(); setOpen(true); }}
+            initial={{ opacity: 0, x: 8 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 1 }}
+            className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-emerald-700 shadow-lg backdrop-blur dark:bg-slate-900/90 dark:text-emerald-300"
+          >
+            💬 {t("chat.fab_label")}
+          </motion.button>
         )}
-      </motion.button>
+        <motion.button
+          onClick={() => { dismissTeaser(); setOpen(!open); }}
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
+          animate={open ? {} : { y: [0, -5, 0] }}
+          transition={open ? {} : { y: { repeat: Infinity, repeatDelay: 5, duration: 0.45 } }}
+          className={`relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-sky-600 text-3xl shadow-xl shadow-emerald-500/40 ${open ? "" : "fab-ring"}`}
+          title={t("chat.title")}
+        >
+          {open ? <X className="text-white" size={24} /> : "⚽"}
+          {!open && liveNow && (
+            <span className="absolute -right-0.5 -top-0.5 h-4 w-4 animate-pulse rounded-full border-2 border-white bg-red-500" />
+          )}
+          {!open && (
+            <Sparkles size={15} className="absolute -left-1 -top-1 text-amber-300" />
+          )}
+        </motion.button>
+      </div>
 
       {/* Panel */}
       <AnimatePresence>
