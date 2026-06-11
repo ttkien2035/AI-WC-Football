@@ -136,7 +136,16 @@ export default function App() {
 
       <main>{TABS.find((x) => x.id === tab)?.el}</main>
 
-      <footer className="mt-10 text-center text-[11px] text-slate-400">{t("app.footer")}</footer>
+      <footer className="mt-10 text-center text-[11px] text-slate-400">
+        <p>{t("app.footer")}</p>
+        <p className="mt-1.5 font-medium">
+          ⚡ Powered by{" "}
+          <a href="https://github.com/ttkien2035" target="_blank" rel="noreferrer"
+             className="font-bold text-emerald-500 hover:underline">
+            ttkien2035
+          </a>
+        </p>
+      </footer>
     </div>
   );
 }

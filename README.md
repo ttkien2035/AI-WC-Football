@@ -147,6 +147,10 @@ GET  /api/ml/status   ·  POST /api/ml/retrain
 GET  /api/sources/status                 # health of every data source
 ```
 
+## 👤 Author
+
+**Powered by [ttkien2035](https://github.com/ttkien2035)** — built for FIFA World Cup 2026.
+
 ## ⚠️ Limitations & disclaimer
 
 - football-data.org free tier has no live minute → sourced from LiveScore (unofficial) with kickoff-time estimation as fallback
