@@ -91,7 +91,7 @@ export default function MatchSim() {
             <div className="space-y-1">
               {upcoming.map((m) => (
                 <button key={m.id} onClick={() => pickMatch(m)}
-                  className="flex w-full items-center justify-between rounded-lg bg-slate-100 px-2 py-1.5 text-left text-xs transition hover:bg-emerald-50 hover:ring-1 hover:ring-emerald-400 dark:bg-slate-800 dark:hover:bg-emerald-950/40">
+                  className="flex w-full items-center justify-between rounded-lg bg-slate-100/80 px-2 py-1.5 text-left text-xs transition hover:bg-emerald-50 hover:ring-1 hover:ring-emerald-400 dark:bg-white/[0.07] dark:hover:bg-emerald-950/40">
                   <span className="flex items-center gap-1.5 font-medium">
                     <Flag crest={m.home.crest} tla={m.home.tla} size={14} /> {m.home.tla}
                     <span className="text-slate-400">vs</span>
@@ -187,7 +187,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
         {pred.scorelines.map((s, i) => (
           <span key={i}
             className={`rounded-lg px-2.5 py-1 text-sm font-semibold tabular-nums ${
-              i === 0 ? "bg-emerald-600 text-white" : "bg-slate-200 dark:bg-slate-800"}`}>
+              i === 0 ? "bg-emerald-600 text-white" : "bg-slate-200/80 dark:bg-white/[0.1]"}`}>
             {s.home}–{s.away} <span className="text-xs opacity-75">{pct(s.p)}</span>
           </span>
         ))}
@@ -424,7 +424,7 @@ function H2hPanel({ pred, h2h }: { pred: Prediction; h2h: EvalResult }) {
 }
 
 const CompRow = ({ name, w, v }: { name: string; w: number; v: Record<string, number> }) => (
-  <tr className="border-t border-slate-100 dark:border-slate-800">
+  <tr className="border-t border-slate-100 dark:border-white/10">
     <td className="py-1">{name}</td>
     <td>{(w * 100).toFixed(0)}%</td>
     <td>{pct(v.home)}</td><td>{pct(v.draw)}</td><td>{pct(v.away)}</td>

@@ -39,7 +39,7 @@ function MatchCard({ no, entry, label, when }: {
         lang === "vi" ? "vi-VN" : "en-US", { day: "numeric", month: "short" })
     : null;
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-2.5 text-xs shadow-sm dark:border-slate-800 dark:bg-slate-900">
+    <div className="rounded-xl border border-slate-200/80 bg-white/85 p-2.5 text-xs shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/[0.045]">
       <div className="mb-1 flex justify-between text-[10px] text-slate-400">
         <span>M{no}</span>
         <span>{label}</span>
@@ -77,7 +77,7 @@ export default function Bracket() {
     api.bracket().then(setData);
   }, []);
 
-  if (!data) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />;
+  if (!data) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-white/[0.1]" />;
 
   return (
     <Card className="overflow-x-auto">

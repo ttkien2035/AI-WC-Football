@@ -52,7 +52,7 @@ export default function Accuracy() {
               <tbody>
                 {Object.entries(metrics).map(([name, m]) => (
                   <tr key={name}
-                      className={`border-t border-slate-100 dark:border-slate-800 ${
+                      className={`border-t border-slate-100 dark:border-white/10 ${
                         name === "ENSEMBLE" ? "font-bold text-emerald-600 dark:text-emerald-400" : ""}`}>
                     <td className="py-1">{name}</td>
                     <td>{m.rps.toFixed(4)}</td>
@@ -125,7 +125,7 @@ export default function Accuracy() {
                 </thead>
                 <tbody className="tabular-nums">
                   {result.matches.map((m, i) => (
-                    <tr key={i} className="border-t border-slate-100 dark:border-slate-800">
+                    <tr key={i} className="border-t border-slate-100 dark:border-white/10">
                       <td className="py-1.5 text-xs text-slate-400">{m.date}</td>
                       <td>
                         {m.home} <b>{m.score}</b> {m.away}

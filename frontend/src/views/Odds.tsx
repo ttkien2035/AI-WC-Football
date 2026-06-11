@@ -15,7 +15,7 @@ export default function Odds() {
   }, []);
 
   if (err) return <p className="text-red-500">Failed: {err}</p>;
-  if (!data) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />;
+  if (!data) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-white/[0.1]" />;
 
   const noMarket = data.source === "disabled";
 
@@ -76,7 +76,7 @@ export default function Odds() {
                     </td>
                   );
                   return (
-                    <tr className="border-t border-slate-100 dark:border-slate-800">
+                    <tr className="border-t border-slate-100 dark:border-white/10">
                       <td className="py-1.5 pr-2 font-medium">{t("odds.market")}</td>
                       {cell(mh.home, "home")}{cell(mh.draw, "draw")}{cell(mh.away, "away")}
                       <td>
@@ -98,7 +98,7 @@ export default function Odds() {
                     </tr>
                   );
                 })()}
-                <tr className="border-t border-slate-100 dark:border-slate-800">
+                <tr className="border-t border-slate-100 dark:border-white/10">
                   <td className="py-1.5 pr-2 font-medium text-sky-600 dark:text-sky-400">
                     {t("odds.model")}
                   </td>

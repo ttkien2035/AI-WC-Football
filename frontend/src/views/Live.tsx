@@ -43,7 +43,7 @@ export default function Live() {
             <button key={m.id} onClick={() => setSelected(m.id)}
               className={`rounded-full px-3 py-1.5 text-sm font-semibold ${
                 m.id === selected ? "bg-red-600 text-white"
-                  : "bg-slate-200 dark:bg-slate-800"}`}>
+                  : "bg-slate-200/80 dark:bg-white/[0.1]"}`}>
               {m.home.tla} {m.score.home ?? 0}–{m.score.away ?? 0} {m.away.tla}
             </button>
           ))}

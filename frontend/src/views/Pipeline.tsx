@@ -41,7 +41,7 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
   };
 
   if (err) return <p className="text-red-500">{err}</p>;
-  if (!status) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />;
+  if (!status) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-white/[0.1]" />;
 
   const c = status.collection;
   const counters: [string, number][] = [
@@ -227,7 +227,7 @@ function UsageCard({ usage }: { usage: Analytics }) {
             return (
               <div key={x.tab} className="mb-1 flex items-center gap-2 text-xs">
                 <span className="w-20 shrink-0">{x.tab}</span>
-                <div className="h-2.5 flex-1 overflow-hidden rounded bg-slate-200 dark:bg-slate-800">
+                <div className="h-2.5 flex-1 overflow-hidden rounded bg-slate-200/80 dark:bg-white/[0.1]">
                   <div className="h-full rounded bg-sky-500"
                        style={{ width: `${(x.n / max) * 100}%` }} />
                 </div>
@@ -271,7 +271,7 @@ function ReviewCard({ r }: { r: ReviewRow }) {
   if (f.corners?.home != null) factors.push(`⛳ ${f.corners.home}–${f.corners.away}`);
 
   return (
-    <div className="rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800">
+    <div className="rounded-xl border border-slate-200 p-3 text-sm dark:border-white/10">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-2 font-semibold">
           <Flag crest={r.home.crest} tla={r.home.tla} />

@@ -35,7 +35,7 @@ export default function TitleOdds() {
       .slice(0, 20);
   }, [sim, teams, metric]);
 
-  if (!sim) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />;
+  if (!sim) return <div className="h-96 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-white/[0.1]" />;
 
   return (
     <Card>

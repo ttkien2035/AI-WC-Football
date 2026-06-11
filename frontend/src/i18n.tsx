@@ -5,7 +5,7 @@ export type Lang = "vi" | "en";
 const DICT: Record<string, { vi: string; en: string }> = {
   // App shell
   "app.title": { vi: "World Cup 2026", en: "World Cup 2026" },
-  "app.subtitle": { vi: "Dự đoán", en: "Predictor" },
+  "app.subtitle": { vi: "AI Dự đoán", en: "AI Predictor" },
   "tab.groups": { vi: "Vòng bảng", en: "Groups" },
   "tab.bracket": { vi: "Nhánh đấu", en: "Bracket" },
   "tab.match": { vi: "Dự đoán trận", en: "Match Sim" },

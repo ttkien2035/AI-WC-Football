@@ -44,7 +44,7 @@ export default function Groups() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.tla} className="border-t border-slate-100 dark:border-slate-800">
+                  <tr key={r.tla} className="border-t border-slate-100 dark:border-white/10">
                     <td className="py-1.5">
                       <span className="flex items-center gap-2">
                         <span className="w-4 text-xs text-slate-400">{r.position}</span>
@@ -78,7 +78,7 @@ function Skeleton() {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="h-56 animate-pulse rounded-2xl bg-slate-200 dark:bg-slate-800" />
+        <div key={i} className="h-56 animate-pulse rounded-2xl bg-slate-200/80 dark:bg-white/[0.1]" />
       ))}
     </div>
   );
