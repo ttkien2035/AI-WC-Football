@@ -225,11 +225,27 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "pl.lang_split": { vi: "Ngôn ngữ", en: "Language" },
   "pl.no_usage": { vi: "Chưa có dữ liệu hành vi — sẽ tích lũy khi user dùng app.", en: "No usage data yet — accumulates as users browse." },
 
+  // Schedule
+  "tab.schedule": { vi: "Lịch thi đấu", en: "Schedule" },
+  "sched.all": { vi: "Tất cả", en: "All" },
+  "sched.group_stage": { vi: "Vòng bảng", en: "Group stage" },
+  "sched.knockout": { vi: "Vòng knockout", en: "Knockout" },
+  "sched.group_pick": { vi: "Bảng", en: "Group" },
+  "sched.tbd": { vi: "Chưa xác định", en: "TBD" },
+  "sched.note": { vi: "Giờ hiển thị theo múi giờ máy của bạn. 104 trận: vòng bảng 11–27/6, knockout 28/6–19/7.", en: "Times shown in your local timezone. 104 matches: groups Jun 11–27, knockouts Jun 28–Jul 19." },
+  "stage.GROUP_STAGE": { vi: "Bảng", en: "Group" },
+  "stage.LAST_32": { vi: "Vòng 1/16", en: "R32" },
+  "stage.LAST_16": { vi: "Vòng 1/8", en: "R16" },
+  "stage.QUARTER_FINALS": { vi: "Tứ kết", en: "QF" },
+  "stage.SEMI_FINALS": { vi: "Bán kết", en: "SF" },
+  "stage.THIRD_PLACE": { vi: "Tranh hạng 3", en: "3rd place" },
+  "stage.FINAL": { vi: "CHUNG KẾT", en: "FINAL" },
+
   // AI chat
   "chat.title": { vi: "Football AI Analysis", en: "Football AI Analysis" },
   "chat.greeting": {
-    vi: "Xin chào! ⚽ Tôi là chuyên gia phân tích AI của World Cup 2026. Hỏi tôi về dự đoán, tỉ lệ, kèo, đội hình — tôi trả lời bằng số liệu thật từ model. Bạn có 5 câu hỏi mỗi ngày!",
-    en: "Hi! ⚽ I'm the AI analyst for World Cup 2026. Ask me about predictions, odds, lineups — I answer with real model data. You get 5 questions a day!",
+    vi: "Xin chào! ⚽ Tôi là chuyên gia phân tích AI của World Cup 2026. Hỏi tôi về dự đoán, kèo, đội hình — hoặc bất cứ điều gì về bóng đá, không có sẵn data tôi sẽ tự search web. Bạn có {n} câu hỏi mỗi ngày!",
+    en: "Hi! ⚽ I'm the AI analyst for World Cup 2026. Ask about predictions, odds, lineups — or anything football; I'll search the web when needed. You get {n} questions a day!",
   },
   "chat.greeting_live": {
     vi: "🔴 Đang có trận live! Hỏi tôi về diễn biến, xác suất thắng thay đổi thế nào, hoặc bất cứ trận nào khác.",
@@ -238,9 +254,10 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "chat.placeholder": { vi: "Hỏi về trận đấu, tỉ lệ, kèo…", en: "Ask about matches, odds, predictions…" },
   "chat.thinking": { vi: "Đang phân tích…", en: "Analyzing…" },
   "chat.quota_out": {
-    vi: "⚡ Bạn đã dùng hết 5 câu hôm nay. Quay lại ngày mai nhé! Trong lúc chờ, khám phá tab Dự đoán trận & Tỉ lệ kèo.",
-    en: "⚡ You've used all 5 questions today. Come back tomorrow! Meanwhile, explore the Match Sim & Odds tabs.",
+    vi: "⚡ Bạn đã dùng hết {n} câu hôm nay. Quay lại ngày mai nhé! Trong lúc chờ, khám phá tab Dự đoán trận & Tỉ lệ kèo.",
+    en: "⚡ You've used all {n} questions today. Come back tomorrow! Meanwhile, explore the Match Sim & Odds tabs.",
   },
+  "chat.sources": { vi: "Nguồn", en: "Sources" },
   "chat.error": { vi: "Có lỗi khi kết nối AI — thử lại sau nhé.", en: "AI connection error — please try again later." },
   "chat.disclaimer": { vi: "Tham khảo thống kê — không phải khuyến nghị cá cược", en: "Statistical reference — not betting advice" },
   "chat.chip_deep": { vi: "Phân tích sâu trận {m}", en: "Deep-dive {m}" },

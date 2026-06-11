@@ -30,7 +30,7 @@ class Settings(BaseSettings):
 
     # AI chat (cost control)
     chat_model: str = "gemini-2.5-flash"
-    chat_daily_per_user: int = 5
+    chat_daily_per_user: int = 10
     chat_daily_global: int = 300
     chat_max_output_tokens: int = 512
 

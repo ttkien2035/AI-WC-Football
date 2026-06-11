@@ -212,7 +212,8 @@ async def chat_quota(v: str, request: Request):
     allowed, remaining = chat.check_quota(v, ip)
     live = any(m["status"] in service.LIVE_STATUSES for m in await service.get_matches())
     return {"enabled": bool(settings.gemini_keys()),
-            "allowed": allowed, "remaining": remaining, "live_now": live}
+            "allowed": allowed, "remaining": remaining,
+            "limit": settings.chat_daily_per_user, "live_now": live}
 
 
 # ── Usage analytics ──────────────────────────────────────────

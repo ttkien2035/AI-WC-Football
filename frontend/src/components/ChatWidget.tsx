@@ -6,7 +6,8 @@ import { useLang, useT } from "../i18n";
 import { getVisitorId } from "../visitor";
 
 type ToolStep = { name: string; label: string; done: boolean };
-type Msg = { role: "user" | "bot"; text: string; tools: ToolStep[] };
+type Src = { title: string; url: string };
+type Msg = { role: "user" | "bot"; text: string; tools: ToolStep[]; sources?: Src[] };
 
 /** markdown-lite: **bold**, bullet lines, newlines */
 function Md({ text }: { text: string }) {
@@ -38,6 +39,7 @@ export default function ChatWidget() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
+  const [limit, setLimit] = useState(10);
   const [liveNow, setLiveNow] = useState(false);
   const [followups, setFollowups] = useState<string[]>([]);
   const [todayMatch, setTodayMatch] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export default function ChatWidget() {
   useEffect(() => {
     fetch(`/api/chat/quota?v=${getVisitorId()}`)
       .then((r) => r.json())
-      .then((d) => { setRemaining(d.remaining); setLiveNow(d.live_now); setEnabled(d.enabled); })
+      .then((d) => { setRemaining(d.remaining); setLimit(d.limit ?? 10); setLiveNow(d.live_now); setEnabled(d.enabled); })
       .catch(() => {});
     api.live().then((d) => {
       const m = d.live[0] ?? d.today.find((x) => x.status === "TIMED");
@@ -114,10 +116,11 @@ export default function ChatWidget() {
               bot.text += ev.text;
             } else if (ev.type === "done") {
               bot.tools = bot.tools.map((x) => ({ ...x, done: true }));
+              if (ev.sources?.length) bot.sources = ev.sources;
               setRemaining(ev.remaining);
               setFollowups(ev.followups ?? []);
             } else if (ev.type === "error") {
-              bot.text = ev.code === "quota" ? t("chat.quota_out") : t("chat.error");
+              bot.text = ev.code === "quota" ? t("chat.quota_out", { n: limit }) : t("chat.error");
               if (ev.code === "quota") setRemaining(0);
             }
             out[out.length - 1] = bot;
@@ -214,9 +217,9 @@ export default function ChatWidget() {
               <span className="flex items-center gap-1.5 text-sm font-bold">
                 ⚽ {t("chat.title")} <Sparkles size={14} className="text-amber-300" />
               </span>
-              <span className="flex items-center gap-0.5" title={`${remaining ?? "?"}/5`}>
-                {[...Array(5)].map((_, i) => (
-                  <Zap key={i} size={13}
+              <span className="flex items-center gap-0.5" title={`${remaining ?? "?"}/${limit}`}>
+                {[...Array(limit)].map((_, i) => (
+                  <Zap key={i} size={limit > 6 ? 10 : 13}
                     className={i < (remaining ?? 0) ? "text-amber-300" : "text-white/25"}
                     fill={i < (remaining ?? 0) ? "currentColor" : "none"} />
                 ))}
@@ -226,7 +229,7 @@ export default function ChatWidget() {
             {/* messages */}
             <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3 text-sm">
               <div className="rounded-2xl rounded-tl-sm bg-slate-100 p-3 dark:bg-slate-800">
-                <Md text={liveNow ? t("chat.greeting_live") : t("chat.greeting")} />
+                <Md text={liveNow ? t("chat.greeting_live") : t("chat.greeting", { n: limit })} />
               </div>
               {msgs.map((m, i) => (
                 <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
@@ -252,12 +255,23 @@ export default function ChatWidget() {
                     {m.role === "bot" && streaming && i === msgs.length - 1 && m.text && (
                       <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-emerald-500 align-middle" />
                     )}
+                    {m.sources && m.sources.length > 0 && (
+                      <div className="mt-1.5 border-t border-slate-200/60 pt-1 text-[10px] dark:border-white/10">
+                        🌐 {t("chat.sources")}:{" "}
+                        {m.sources.map((s, k) => (
+                          <a key={k} href={s.url} target="_blank" rel="noreferrer"
+                             className="mr-1.5 text-sky-500 hover:underline">
+                            {s.title || new URL(s.url).hostname}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
               {(remaining ?? 1) <= 0 && !streaming && (
                 <div className="rounded-2xl bg-amber-50 p-3 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-                  {t("chat.quota_out")}
+                  {t("chat.quota_out", { n: limit })}
                 </div>
               )}
             </div>

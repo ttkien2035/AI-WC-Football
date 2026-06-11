@@ -11,6 +11,7 @@ import TitleOdds from "./views/TitleOdds";
 import Odds from "./views/Odds";
 import Accuracy from "./views/Accuracy";
 import Live from "./views/Live";
+import Schedule from "./views/Schedule";
 import Pipeline from "./views/Pipeline";
 import ChatWidget from "./components/ChatWidget";
 
@@ -56,6 +57,7 @@ export default function App() {
 
   const TABS = [
     { id: "live", key: "tab.live", el: <Live /> },
+    { id: "schedule", key: "tab.schedule", el: <Schedule /> },
     { id: "groups", key: "tab.groups", el: <Groups /> },
     { id: "bracket", key: "tab.bracket", el: <Bracket /> },
     { id: "match", key: "tab.match", el: <MatchSim /> },

@@ -147,7 +147,7 @@ TOOL_DECLS = [
          "home_goals": {"type": "integer"}, "away_goals": {"type": "integer"}},
          "required": ["home", "away", "home_goals", "away_goals"]}},
     {"name": "search_football_news",
-     "description": "Search the web (Google) for fresh football news: injuries, form, lineups rumours. Use only when internal data cannot answer.",
+     "description": "Search the web (Google) for anything football the internal tools don't cover: news, injuries, transfers, football history, legendary players, other leagues/tournaments, stadiums, schedules. Prefer this over refusing or guessing.",
      "parameters": {"type": "object", "properties": {
          "query": {"type": "string"}}, "required": ["query"]}},
 ]
@@ -312,10 +312,11 @@ def _system(lang: str) -> str:
     return f"""You are "WC Analyst" — the in-app football analyst of an AI World Cup 2026 prediction platform. Now: {now}. Tournament: FIFA World Cup 2026 (48 teams, Jun 11 - Jul 19).
 
 RULES:
-- Use the provided tools for EVERY number you cite. Never invent statistics. If a tool errors, say what you couldn't fetch.
+- Use the provided tools for EVERY app-model number you cite (probabilities, odds, Elo, simulations). Never invent statistics. If a tool errors, say what you couldn't fetch.
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
+- You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues. When internal tools don't cover it (history, transfers, fresh news, stadium/ticket info), call search_football_news to look it up on the web instead of refusing or guessing.
 - Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
-- ONLY discuss this World Cup / football analysis. Politely decline anything else (coding, politics, other tasks) in one sentence.
+- Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.
 - Predictions are statistical estimates — when relevant, append a one-line reminder that this is reference, not betting advice.
 - End your reply with one line exactly: FOLLOWUPS: q1 | q2 (two short follow-up questions in the user's language). This line will be hidden from the user.
 - User interface language hint: {lang}."""
@@ -378,6 +379,7 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
         tools = [{"function_declarations": TOOL_DECLS}]
 
     full_text = []
+    news_sources: list[dict] = []
     # Holdback emitter: never let the trailing "FOLLOWUPS: ..." line reach the
     # user; keep a small lookahead buffer so the marker can't slip through
     # split across chunks.
@@ -487,6 +489,8 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
                                   "label_vi": lbl[0], "label_en": lbl[1],
                                   "args": args}) + "\n"
                 result = await _exec_tool(name, args)
+                if name == "search_football_news" and isinstance(result, dict):
+                    news_sources.extend(result.get("sources") or [])
                 raw = json.dumps(result, ensure_ascii=False)
                 if len(raw) > 8000:      # keep tool payloads lean for token cost
                     result = {"truncated": True, "data_preview": raw[:8000]}
@@ -503,4 +507,5 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
         tail = text.rsplit("FOLLOWUPS:", 1)[1]
         followups = [q.strip() for q in tail.split("|") if q.strip()][:3]
     yield json.dumps({"type": "done", "remaining": remaining,
-                      "followups": followups}) + "\n"
+                      "followups": followups,
+                      "sources": news_sources[:4]}) + "\n"
