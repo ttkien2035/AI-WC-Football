@@ -1,0 +1,44 @@
+{
+ "split": {
+  "train": 44837,
+  "valid": 3255,
+  "test": 1313
+ },
+ "weights": {
+  "dc": 0.0,
+  "lr": 0.25,
+  "xgb": 0.75
+ },
+ "test_metrics": {
+  "heuristic (current)": {
+   "rps": 0.1701,
+   "logloss": 0.8747,
+   "acc": 0.6169,
+   "n": 1313
+  },
+  "M1 dixon-coles": {
+   "rps": 0.1769,
+   "logloss": 0.8866,
+   "acc": 0.5874,
+   "n": 1282
+  },
+  "M2 logreg": {
+   "rps": 0.1613,
+   "logloss": 0.8369,
+   "acc": 0.6169,
+   "n": 1313
+  },
+  "M3 xgboost": {
+   "rps": 0.1608,
+   "logloss": 0.8438,
+   "acc": 0.6154,
+   "n": 1313
+  },
+  "ENSEMBLE": {
+   "rps": 0.1605,
+   "logloss": 0.8349,
+   "acc": 0.6146,
+   "n": 1313
+  }
+ }
+}

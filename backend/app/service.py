@@ -1,0 +1,498 @@
+"""Orchestration: merge data sources, estimate live minutes, cache simulations."""
+import hashlib
+import json
+import time
+from datetime import datetime, timezone
+
+from . import cache
+from .clients import football_data as fd
+from .clients import elo as elo_client
+from .clients import livescore
+from .clients import odds as odds_client
+from .config import settings
+from .engine import match_model, ml_ensemble, periods, tournament
+from .static_data import TEAMS
+
+LIVE_STATUSES = ("IN_PLAY", "PAUSED", "LIVE")
+
+
+def estimate_minute(utc_date: str, status: str) -> int | None:
+    """fd.org free tier has no live minute; estimate from kickoff time
+    (15' half-time assumed). Only meaningful for IN_PLAY/PAUSED."""
+    if status not in LIVE_STATUSES:
+        return None
+    kickoff = datetime.fromisoformat(utc_date.replace("Z", "+00:00"))
+    elapsed = (datetime.now(timezone.utc) - kickoff).total_seconds() / 60.0
+    if elapsed <= 0:
+        return 0
+    if elapsed > 45:
+        elapsed -= 15  # half-time break
+    return int(max(0, min(90, elapsed)))
+
+
+async def get_teams() -> dict[str, dict]:
+    """Standings merged with static metadata + live Elo."""
+    table = await fd.teams_from_standings()
+    ratings, elo_source = await elo_client.ratings()
+    for tla, t in table.items():
+        meta = TEAMS.get(tla, {})
+        t["elo"] = ratings.get(tla, meta.get("elo", 1700))
+        t["fifa_rank"] = meta.get("fifa")
+    return table
+
+
+async def get_matches(force: bool = False) -> list[dict]:
+    ms = await fd.all_matches_simple(force=force)
+    try:
+        ls = await livescore.enrichment()
+    except Exception:
+        ls = {}
+    for m in ms:
+        minute = estimate_minute(m["utcDate"], m["status"])
+        m["minute_estimate"] = minute
+
+        # LiveScore enrichment: real minute, fresher score, HT score, corners
+        e = ls.get(frozenset({m["home"]["tla"], m["away"]["tla"]})) if ls else None
+        if e:
+            flipped = e["home_tla"] != m["home"]["tla"]
+
+            def _flip(d):
+                return ({"home": d["away"], "away": d["home"]} if flipped else d) if d else d
+
+            if e.get("lineups"):
+                lu = e["lineups"]
+                m["lineups"] = ({"home": lu.get("away"), "away": lu.get("home")}
+                                if flipped else lu)
+        if e and (e["live"] or e["finished"]):
+            if e["minute"] is not None:
+                m["minute_estimate"] = minute = e["minute"]
+                m["minute_source"] = "livescore"
+            sc = e["score"]
+            if sc["home"] is not None:
+                m["score_live"] = _flip(sc)
+                if m["status"] not in ("FINISHED",) and e["live"]:
+                    m["status"] = "IN_PLAY"
+                    m["score"] = {**m["score"], **m["score_live"]}
+            ht = e["ht_score"]
+            if ht["home"] is not None:
+                m["ht_score"] = _flip(ht)
+            if e.get("corners"):
+                m["corners"] = _flip(e["corners"])
+            if e.get("red_cards"):
+                m["red_cards"] = _flip(e["red_cards"])
+            if e.get("incidents"):
+                m["incidents"] = [
+                    {**i, "side": ({"home": "away", "away": "home"}.get(i["side"], i["side"])
+                                   if flipped else i["side"])}
+                    for i in e["incidents"]
+                ]
+
+        if minute is not None:
+            m["remaining_frac"] = max(90 - minute, 0) / 90.0
+    return ms
+
+
+def record_match_log(matches: list[dict]) -> None:
+    """Persist the app's own structured record of every finished match
+    (result, HT score, corners, stage) — an in-tournament dataset that
+    survives restarts and feeds future calibration/retraining."""
+    for m in matches:
+        if m["status"] != "FINISHED" or not m["home"]["tla"]:
+            continue
+        cache.put(f"matchlog:{m['id']}", {
+            "id": m["id"], "date": m["utcDate"], "stage": m["stage"],
+            "group": m.get("group"),
+            "home": m["home"]["tla"], "away": m["away"]["tla"],
+            "score": m["score"], "ht_score": m.get("ht_score"),
+            "corners": m.get("corners"),
+        })
+
+
+def record_corner_stats(matches: list[dict]) -> None:
+    """Persist per-team corner counts from finished matches (LiveScore data)
+    so the corners model can learn team-specific rates during the tournament."""
+    for m in matches:
+        if m["status"] != "FINISHED" or not m.get("corners"):
+            continue
+        for side, opp in (("home", "away"), ("away", "home")):
+            tla = m[side]["tla"]
+            if not tla or m["corners"][side] is None:
+                continue
+            key = f"teamstats:corners:{tla}"
+            hist, _ = cache.get_stale(key)
+            hist = hist or {}
+            hist[str(m["id"])] = {"for": m["corners"][side], "against": m["corners"][opp]}
+            cache.put(key, hist)
+
+
+def corner_rates(tla: str) -> dict | None:
+    hist, _ = cache.get_stale(f"teamstats:corners:{tla}")
+    if not hist:
+        return None
+    fors = [v["for"] for v in hist.values() if v["for"] is not None]
+    return {"games": len(fors), "for_avg": sum(fors) / len(fors)} if fors else None
+
+
+def _fingerprint(matches: list[dict], runs: int) -> str:
+    sig = [
+        (m["id"], m["status"], m["score"]["home"], m["score"]["away"],
+         m["home"]["tla"], m["away"]["tla"])
+        for m in matches
+    ]
+    raw = json.dumps([runs, sorted(sig)], default=str)
+    return hashlib.sha1(raw.encode()).hexdigest()
+
+
+def _finished_tuple(matches: list[dict]) -> tuple:
+    """Chronological (home_tla, away_tla, gh, ga) of FINISHED matches — feeds
+    the ML online rating update."""
+    done = [m for m in matches if m["status"] == "FINISHED"
+            and m["home"]["tla"] and m["away"]["tla"]
+            and m["score"]["home"] is not None]
+    done.sort(key=lambda m: m["utcDate"])
+    return tuple((m["home"]["tla"], m["away"]["tla"],
+                  m["score"]["home"], m["score"]["away"]) for m in done)
+
+
+def _real_ko(matches: list[dict]) -> list[dict]:
+    out = []
+    for m in matches:
+        if m["stage"] == "GROUP_STAGE" or not m["home"]["tla"] or not m["away"]["tla"]:
+            continue
+        winner = None
+        if m["status"] == "FINISHED":
+            w = m["score"].get("winner")
+            winner = m["home"]["tla"] if w == "HOME_TEAM" else (
+                m["away"]["tla"] if w == "AWAY_TEAM" else None)
+        out.append({"stage": m["stage"], "home": m["home"]["tla"],
+                    "away": m["away"]["tla"], "winner": winner})
+    return out
+
+
+async def run_simulation(runs: int | None = None, force: bool = False) -> dict:
+    runs = runs or settings.n_sims_tournament
+    teams = await get_teams()
+    matches = await get_matches()
+    key = f"sim:{_fingerprint(matches, runs)}"
+    if not force:
+        hit = cache.get(key, ttl=12 * 3600)
+        if hit is not None:
+            return hit
+
+    groups: dict[str, list[str]] = {}
+    for tla, t in teams.items():
+        groups.setdefault(t["group"], []).append(tla)
+    for g in groups:
+        groups[g].sort(key=lambda t: teams[t]["position"])
+
+    # Prefer the ML pipeline's Elo scale + fitted goal rates (consistent pair);
+    # fall back to live eloratings + heuristic supremacy split.
+    finished = _finished_tuple(matches)
+    ml_elo = ml_ensemble.elo_by_tla(finished)
+    goal_coefs = None
+    if ml_elo and all(t in ml_elo for t in teams):
+        elo_map = ml_elo
+        goal_coefs = ml_ensemble._artifacts()["rates"]
+    else:
+        elo_map = {t: v["elo"] for t, v in teams.items()}
+
+    t0 = time.time()
+    result = tournament.simulate(
+        n=runs,
+        elo_by_tla=elo_map,
+        groups=groups,
+        group_matches=[m for m in matches if m["stage"] == "GROUP_STAGE"],
+        real_ko=_real_ko(matches),
+        goal_coefs=goal_coefs,
+    )
+    result["ml"] = goal_coefs is not None
+    result["elapsed_s"] = round(time.time() - t0, 2)
+    result["computed_at"] = datetime.now(timezone.utc).isoformat()
+    result["fingerprint"] = key.split(":", 1)[1][:12]
+    cache.put(key, result)
+    cache.put("sim:latest_key", key)
+    return result
+
+
+async def latest_simulation() -> dict | None:
+    key = cache.get("sim:latest_key", ttl=7 * 86_400)
+    if key:
+        hit, _ = cache.get_stale(key)
+        if hit:
+            return hit
+    return None
+
+
+async def predict(home: str, away: str, minute: int | None = None,
+                  hg: int = 0, ag: int = 0) -> dict:
+    teams = await get_teams()
+    if home not in teams or away not in teams:
+        raise ValueError(f"Unknown team TLA: {home if home not in teams else away}")
+    market_map, _ = await odds_client.market_probs()
+
+    # fixture context between the two teams: live state, HT score, corners, stage
+    matches = await get_matches()
+    fixture = next((m for m in matches
+                    if {m["home"]["tla"], m["away"]["tla"]} == {home, away}), None)
+    ht_h = ht_a = None
+    corners_now = None
+    stage = fixture["stage"] if fixture else None
+    if fixture:
+        flipped = fixture["home"]["tla"] != home
+
+        def _orient(d):
+            if not d or d.get("home") is None:
+                return None
+            return {"home": d["away"], "away": d["home"]} if flipped else d
+
+        if minute is None and fixture["status"] in LIVE_STATUSES:
+            minute = fixture["minute_estimate"] or 0
+            sc = _orient(fixture["score"])
+            if sc:
+                hg, ag = sc["home"] or 0, sc["away"] or 0
+        ht = _orient(fixture.get("ht_score"))
+        if ht:
+            ht_h, ht_a = ht["home"], ht["away"]
+        corners_now = _orient(fixture.get("corners"))
+
+    market = None
+    entry = market_map.get(frozenset({home, away}))
+    if entry:
+        p = entry["probs"]
+        market = p if entry["home_tla"] == home else \
+            {"home": p["away"], "draw": p["draw"], "away": p["home"]}
+
+    # league avg goals per team per game from current tournament
+    played_total = sum(t["played"] for t in teams.values())
+    gf_total = sum(t["gf"] for t in teams.values())
+    lg_avg = (gf_total / played_total) if played_total else 0.0
+
+    def _form(t):
+        f = teams[t].get("form")
+        return list(reversed(f.split(","))) if f else None
+
+    # key-player absence penalty (only when an XI is announced) + red cards
+    from . import team_profiles
+    lu = (fixture or {}).get("lineups") or {}
+    pen_h, kp_h = team_profiles.absence_penalty(home, (lu.get("home") or {}).get("players"))
+    pen_a, kp_a = team_profiles.absence_penalty(away, (lu.get("away") or {}).get("players"))
+    elo_adjust = (-pen_h, -pen_a)
+    rc = (fixture or {}).get("red_cards") or {}
+    red_cards = (rc.get("home", 0), rc.get("away", 0))
+
+    finished = _finished_tuple(matches)
+    ml_probs = ml_ensemble.predict_wdl(home, away, finished, elo_adjust=elo_adjust)
+    lam_override = ml_ensemble.goal_lambdas(home, away, finished, elo_adjust=elo_adjust)
+
+    pred = match_model.predict_match(
+        home_tla=home, away_tla=away,
+        elo_h=teams[home]["elo"] - pen_h, elo_a=teams[away]["elo"] - pen_a,
+        home_stats=teams[home], away_stats=teams[away],
+        lg_avg_per_team=lg_avg,
+        market=market,
+        form_h=_form(home), form_a=_form(away),
+        minute=minute, goals_h=hg, goals_a=ag,
+        ml_probs=ml_probs, lam_override=lam_override,
+        red_cards=red_cards,
+    )
+    if pen_h or pen_a:
+        pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
+                                   "away": {"elo": -pen_a, "players": kp_a}}
+
+    # ---- period-level extensions ----
+    lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]
+    eh, ea = pred["elo"]["home"], pred["elo"]["away"]
+    pred["halves"] = periods.halves(lam_h, lam_a, minute=minute,
+                                    goals_h=hg, goals_a=ag, ht_h=ht_h, ht_a=ht_a)
+    pred["corners"] = periods.corners(
+        lam_h, lam_a, eh, ea,
+        team_rates=(corner_rates(home), corner_rates(away)),
+        minute=minute, corners_so_far=corners_now)
+    pred["stage"] = stage
+    pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
+    pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
+    return pred
+
+
+def _fair(p: float | None) -> float | None:
+    return round(1.0 / p, 2) if p and p > 0.01 else None
+
+
+async def odds_board(limit: int = 24) -> dict:
+    """Market odds (when key present) + model fair odds for upcoming matches."""
+    teams = await get_teams()
+    matches = await get_matches()
+    finished = _finished_tuple(matches)
+    upcoming = sorted(
+        (m for m in matches
+         if m["status"] in ("TIMED", "SCHEDULED") and m["home"]["tla"] and m["away"]["tla"]),
+        key=lambda m: m["utcDate"])[:limit]
+
+    market_events, source = await odds_client.board()
+    by_pair = {frozenset({e["home_tla"], e["away_tla"]}): e for e in market_events}
+
+    now = datetime.now(timezone.utc)
+    extras_budget = 6
+    rows = []
+    for m in upcoming:
+        h, a = m["home"]["tla"], m["away"]["tla"]
+        ev = by_pair.get(frozenset({h, a}))
+        flipped = bool(ev and ev["home_tla"] != h)
+
+        # model fair odds
+        probs = ml_ensemble.predict_wdl(h, a, finished)
+        if probs is None:
+            eh = match_model.effective_elo(h, teams[h]["elo"])
+            ea = match_model.effective_elo(a, teams[a]["elo"])
+            mtx = match_model.score_matrix(*match_model.lambdas_from_elo(eh, ea))
+            o = match_model.matrix_outcomes(mtx)
+            probs = {k: o[k] for k in ("home", "draw", "away")}
+        lam = ml_ensemble.goal_lambdas(h, a, finished)
+        if lam is None:
+            eh = match_model.effective_elo(h, teams[h]["elo"])
+            ea = match_model.effective_elo(a, teams[a]["elo"])
+            lam = match_model.lambdas_from_elo(eh, ea)
+        o = match_model.matrix_outcomes(match_model.score_matrix(*lam))
+        cor = periods.corners(lam[0], lam[1],
+                              teams[h]["elo"], teams[a]["elo"],
+                              team_rates=(corner_rates(h), corner_rates(a)))
+
+        row = {
+            "match_id": m["id"], "utcDate": m["utcDate"], "stage": m["stage"],
+            "group": m["group"],
+            "home": m["home"], "away": m["away"],
+            "fair": {
+                "h2h": {k: _fair(v) for k, v in probs.items()},
+                "probs": {k: round(v, 4) for k, v in probs.items()},
+                "over25": _fair(o["over25"]), "under25": _fair(1 - o["over25"]),
+                "btts_yes": _fair(o["btts"]),
+                "corners_over_95": _fair(cor["over"]["ft_9.5"]),
+                "expected_corners": cor["expected"]["total"],
+            },
+            "market": None,
+        }
+        if ev:
+            h2h = ev.get("h2h")
+            if h2h and flipped:
+                h2h = {"home": h2h["away"], "draw": h2h["draw"], "away": h2h["home"]}
+            row["market"] = {"h2h": h2h, "totals": ev.get("totals"),
+                             "spreads": ev.get("spreads"), "flipped": flipped}
+            # value flags: model prob vs de-vig market prob
+            if h2h and all(h2h.values()):
+                mk = odds_client._devig(h2h["home"], h2h["draw"], h2h["away"])
+                row["value"] = {k: round(probs[k] - mk[k], 4)
+                                for k in ("home", "draw", "away")
+                                if probs[k] - mk[k] > 0.03}
+            kickoff = datetime.fromisoformat(m["utcDate"].replace("Z", "+00:00"))
+            if extras_budget > 0 and (kickoff - now).total_seconds() < 36 * 3600:
+                extras = await odds_client.event_extras(ev["id"])
+                if extras:
+                    row["market"].update(extras)
+                extras_budget -= 1
+        rows.append(row)
+
+    return {"matches": rows, "source": source, "quota": odds_client.quota(),
+            "ml": ml_ensemble.available()}
+
+
+async def snapshot_live() -> int:
+    """Record a win-prob timeline point for every live match (scheduler tick).
+    Returns the number of snapshots written."""
+    n = 0
+    for m in await get_matches():
+        if m["status"] not in LIVE_STATUSES:
+            continue
+        h, a = m["home"]["tla"], m["away"]["tla"]
+        if not h or not a:
+            continue
+        try:
+            pred = await predict(h, a)
+        except Exception:
+            continue
+        key = f"timeline:{m['id']}"
+        series, _ = cache.get_stale(key)
+        series = series or []
+        point = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "minute": pred.get("minute"),
+            "score": pred.get("score"),
+            "probs": pred["probs"],
+        }
+        # skip duplicate minute+score points to keep the series clean
+        if not series or (series[-1]["minute"], series[-1]["score"]) != \
+                (point["minute"], point["score"]):
+            series.append(point)
+            cache.put(key, series[-240:])
+            n += 1
+    return n
+
+
+def timeline(match_id: int) -> list[dict]:
+    series, _ = cache.get_stale(f"timeline:{match_id}")
+    return series or []
+
+
+async def analysis(home: str, away: str) -> dict:
+    """Tactical analysis: curated profiles + live lineups + key-player
+    availability + full squads. Style is display-only (no calibratable data
+    for internationals); absences/red cards are what feed the prediction."""
+    from . import team_profiles
+    teams = await get_teams()
+    if home not in teams or away not in teams:
+        raise ValueError("unknown team")
+    matches = await get_matches()
+    fixture = next((m for m in matches
+                    if {m["home"]["tla"], m["away"]["tla"]} == {home, away}), None)
+    lu = (fixture or {}).get("lineups") or {}
+    flipped = bool(fixture and fixture["home"]["tla"] != home)
+    lu_h = lu.get("away" if flipped else "home")
+    lu_a = lu.get("home" if flipped else "away")
+
+    out = {}
+    for tla, lu_side in ((home, lu_h), (away, lu_a)):
+        prof = dict(team_profiles.PROFILES.get(tla, {}))
+        pen, kps = team_profiles.absence_penalty(tla, (lu_side or {}).get("players"))
+        try:
+            squad = await fd.team_squad(teams[tla]["id"])
+        except Exception:
+            squad = []
+        out[tla] = {
+            "profile": prof,
+            "lineup": lu_side,                       # None until announced
+            "formation_live": (lu_side or {}).get("formation"),
+            "key_players": kps,
+            "absence_elo_penalty": -pen,
+            "squad": squad,
+            "elo": teams[tla]["elo"], "fifa_rank": teams[tla]["fifa_rank"],
+        }
+    return {"home": home, "away": away, "teams": out,
+            "lineups_announced": bool(lu_h or lu_a),
+            "stage": (fixture or {}).get("stage")}
+
+
+async def sources_status() -> dict:
+    out = {}
+    try:
+        ms = await get_matches()
+        out["football_data"] = {
+            "ok": True, "matches": len(ms),
+            "finished": sum(m["status"] == "FINISHED" for m in ms),
+            "live": sum(m["status"] in LIVE_STATUSES for m in ms),
+            "cache_age_s": cache.age("fd:/competitions/WC/matches:None"),
+        }
+    except Exception as e:
+        out["football_data"] = {"ok": False, "error": str(e)}
+    _, elo_source = await elo_client.ratings()
+    out["elo"] = {"ok": True, "source": elo_source}
+    _, odds_source = await odds_client.market_probs()
+    out["odds"] = {"ok": odds_source in ("live", "stale"), "source": odds_source}
+    out["fifa_ranking"] = {"ok": True, "source": "static snapshot (Dec 2025)"}
+    out["livescore"] = await livescore.status()
+    rep = ml_ensemble.report()
+    out["ml_ensemble"] = (
+        {"ok": True, "test_rps": rep["test_metrics"]["ENSEMBLE"]["rps"],
+         "vs_heuristic_rps": rep["test_metrics"]["heuristic (current)"]["rps"],
+         "weights": rep["weights"]}
+        if rep else {"ok": False, "source": "artifacts missing — run: python -m ml.train"}
+    )
+    return out

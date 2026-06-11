@@ -1,0 +1,8 @@
+# Dev ports (auto-merged by `docker compose up` on the local machine).
+services:
+  backend:
+    ports:
+      - "8000:8000"     # direct API access for development
+  frontend:
+    ports:
+      - "8080:80"

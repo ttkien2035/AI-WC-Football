@@ -1,0 +1,32 @@
+# World Cup 2026 Predictor — base stack (no published ports here).
+# Ports live in the environment-specific files:
+#   - docker-compose.override.yml  (dev, auto-loaded:  UI :8080, API :8000)
+#   - deploy/docker-compose.prod.yml (server:          UI :80, API internal-only)
+#
+# Dev:    docker compose up -d --build
+# Server: docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# .env (repo root) is injected into the backend: FOOTBALL_API_KEY (required),
+# ODDS_API_KEY (optional). Named volumes keep the SQLite cache (match log,
+# corner stats) and the ML artifacts (nightly retrains) across restarts.
+
+services:
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      CACHE_DIR: /data
+    volumes:
+      - cache_data:/data
+      - models_data:/app/app/data/models
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  cache_data:
+  models_data:

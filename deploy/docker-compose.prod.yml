@@ -1,0 +1,10 @@
+# Production overrides — use on the server:
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml up -d --build
+#
+# Only nginx (frontend) is exposed. The backend stays on the internal Docker
+# network — its write endpoints (/api/refresh, /api/ml/retrain) have no auth,
+# so it must NOT be published directly on a public server.
+services:
+  frontend:
+    ports:
+      - "80:80"

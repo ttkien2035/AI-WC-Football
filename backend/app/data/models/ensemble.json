@@ -1,0 +1,1 @@
+{"weights": {"dc": 0.0, "lr": 0.25, "xgb": 0.75}, "features": ["elo_diff", "pi_diff", "form5_diff", "gf5_diff", "ga5_diff", "neutral", "importance"]}
