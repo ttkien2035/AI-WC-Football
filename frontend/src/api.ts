@@ -175,6 +175,15 @@ export const api = {
   pipelineStatus: () => jAdmin<PipelineStatus>("/api/pipeline/status"),
   pipelineReview: (limit = 30) => jAdmin<PipelineReview>(`/api/pipeline/review?limit=${limit}`),
   mlRetrain: () => jAdmin<{ ok: boolean }>("/api/ml/retrain", { method: "POST" }),
+  pipelineAnalytics: (days = 14) => jAdmin<Analytics>(`/api/pipeline/analytics?days=${days}`),
+};
+
+export type Analytics = {
+  daily: { date: string; visitors: number; events: number }[];
+  tabs: { tab: string; n: number }[];
+  matchups: { pair: string; n: number }[];
+  langs: { lang: string; n: number }[];
+  totals: { visitors: number; events: number };
 };
 
 export type PipelineStatus = {

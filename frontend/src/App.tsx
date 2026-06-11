@@ -3,6 +3,7 @@ import { Moon, Sun, Trophy, RefreshCw, Languages, ShieldCheck } from "lucide-rea
 import { api, adminToken, type Match } from "./api";
 import { StatusDot, Flag } from "./components/ui";
 import { useLang, useT } from "./i18n";
+import { track } from "./track";
 import Groups from "./views/Groups";
 import Bracket from "./views/Bracket";
 import MatchSim from "./views/MatchSim";
@@ -23,7 +24,13 @@ export default function App() {
     if (adminToken.get()) {
       api.pipelineStatus().then(() => setIsAdmin(true)).catch(() => adminToken.clear());
     }
+    track("visit", { lang: (localStorage.getItem("lang") as string) || "vi" });
   }, []);
+
+  const switchTab = (id: string) => {
+    setTab(id);
+    track("tab", { tab: id });
+  };
 
   const adminLogin = async () => {
     if (isAdmin) { setTab("pipeline"); return; }
@@ -102,7 +109,11 @@ export default function App() {
               ))}
             </div>
             <button
-              onClick={() => setLang(lang === "vi" ? "en" : "vi")}
+              onClick={() => {
+                const next = lang === "vi" ? "en" : "vi";
+                setLang(next);
+                track("lang", { lang: next });
+              }}
               className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-800"
               title="Tiếng Việt / English"
             >
@@ -135,7 +146,7 @@ export default function App() {
 
         <nav className="mt-3 flex flex-wrap gap-1">
           {TABS.map((x) => (
-            <button key={x.id} onClick={() => setTab(x.id)}
+            <button key={x.id} onClick={() => switchTab(x.id)}
               className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
                 tab === x.id
                   ? "bg-emerald-600 text-white shadow"

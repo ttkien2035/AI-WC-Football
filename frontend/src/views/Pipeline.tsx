@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
-import { Brain, Database, RefreshCw, ShieldCheck } from "lucide-react";
+import { BarChart3, Brain, Database, RefreshCw, ShieldCheck } from "lucide-react";
 import {
-  api, adminToken, pct, type PipelineReview, type PipelineStatus, type ReviewRow,
+  Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
+} from "recharts";
+import {
+  api, pct, type Analytics, type PipelineReview, type PipelineStatus, type ReviewRow,
 } from "../api";
 import { Card, Flag, StatusDot } from "../components/ui";
 import { useT } from "../i18n";
@@ -10,12 +14,14 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
   const t = useT();
   const [status, setStatus] = useState<PipelineStatus | null>(null);
   const [review, setReview] = useState<PipelineReview | null>(null);
+  const [usage, setUsage] = useState<Analytics | null>(null);
   const [retraining, setRetraining] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const load = () => {
     api.pipelineStatus().then(setStatus).catch((e) => setErr(String(e)));
     api.pipelineReview().then(setReview).catch(() => {});
+    api.pipelineAnalytics().then(setUsage).catch(() => {});
   };
   useEffect(() => {
     load();
@@ -127,6 +133,8 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
         )}
       </Card>
 
+      {usage && <UsageCard usage={usage} />}
+
       {/* prediction vs result review */}
       <Card>
         <h3 className="mb-2 text-sm font-semibold">{t("pl.review")}</h3>
@@ -149,6 +157,98 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
         )}
       </Card>
     </div>
+  );
+}
+
+function UsageCard({ usage }: { usage: Analytics }) {
+  const t = useT();
+  const tooltipStyle = { background: "#0f172a", border: "1px solid #334155",
+                         borderRadius: 8, color: "#f1f5f9" };
+  if (usage.totals.events === 0) {
+    return (
+      <Card>
+        <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+          <BarChart3 size={14} /> {t("pl.usage")}
+        </h3>
+        <p className="text-sm text-slate-400">{t("pl.no_usage")}</p>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
+        <BarChart3 size={14} /> {t("pl.usage")}
+      </h3>
+      <p className="mb-3 text-xs text-slate-400">
+        {t("pl.usage_totals", { v: usage.totals.visitors, e: usage.totals.events })}
+      </p>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.daily")}</p>
+          <div style={{ height: 180 }}>
+            <ResponsiveContainer>
+              <AreaChart data={usage.daily} margin={{ left: -16, right: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="date" stroke="#94a3b8" fontSize={10}
+                  tickFormatter={(d) => d.slice(5)} />
+                <YAxis stroke="#94a3b8" fontSize={10} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Area dataKey="events" name={t("pl.events")}
+                  stroke="#0ea5e9" fill="#0ea5e9" fillOpacity={0.25} />
+                <Area dataKey="visitors" name={t("pl.visitors")}
+                  stroke="#10b981" fill="#10b981" fillOpacity={0.45} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.top_matchups")}</p>
+          <div style={{ height: 180 }}>
+            <ResponsiveContainer>
+              <BarChart data={usage.matchups} layout="vertical" margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.15} />
+                <XAxis type="number" stroke="#94a3b8" fontSize={10} allowDecimals={false} />
+                <YAxis type="category" dataKey="pair" width={76} stroke="#94a3b8" fontSize={10} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="n" fill="#10b981" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.top_tabs")}</p>
+          {usage.tabs.map((x) => {
+            const max = usage.tabs[0]?.n || 1;
+            return (
+              <div key={x.tab} className="mb-1 flex items-center gap-2 text-xs">
+                <span className="w-20 shrink-0">{x.tab}</span>
+                <div className="h-2.5 flex-1 overflow-hidden rounded bg-slate-200 dark:bg-slate-800">
+                  <div className="h-full rounded bg-sky-500"
+                       style={{ width: `${(x.n / max) * 100}%` }} />
+                </div>
+                <span className="w-10 text-right tabular-nums">{x.n}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.lang_split")}</p>
+          <div className="flex gap-2">
+            {usage.langs.map((x) => (
+              <span key={x.lang}
+                className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold tabular-nums dark:bg-slate-800">
+                {x.lang.toUpperCase()}: {x.n}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 

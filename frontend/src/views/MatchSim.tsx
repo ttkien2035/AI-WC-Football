@@ -3,6 +3,7 @@ import { Radio } from "lucide-react";
 import { api, type Analysis, type EvalResult, type Match, type Prediction, type TeamRow, pct } from "../api";
 import { Card, Flag, ProbBar } from "../components/ui";
 import { useLang, useT, outcomeLabel } from "../i18n";
+import { track } from "../track";
 
 export default function MatchSim() {
   const t = useT();
@@ -45,6 +46,7 @@ export default function MatchSim() {
     setH2h(null);
     setAna(null);
     try {
+      track("predict", { pair: `${h}-${a}`, inplay: useInPlay ? "1" : "0" });
       const params = useInPlay ? `?minute=${minute}&hg=${hg}&ag=${ag}` : "";
       setPred(await api.predict(h, a, params));
       api.evalH2h(h, a).then(setH2h).catch(() => {});

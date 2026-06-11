@@ -209,6 +209,15 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "pl.token_prompt": { vi: "Nhập admin token:", en: "Enter admin token:" },
   "pl.token_bad": { vi: "Token sai hoặc backend chưa cấu hình ADMIN_TOKEN.", en: "Invalid token, or backend has no ADMIN_TOKEN configured." },
   "pl.logout": { vi: "Thoát admin", en: "Exit admin" },
+  "pl.usage": { vi: "Hành vi người dùng", en: "User behaviour" },
+  "pl.usage_totals": { vi: "{v} người dùng · {e} sự kiện (toàn thời gian)", en: "{v} visitors · {e} events (all time)" },
+  "pl.daily": { vi: "Người dùng & sự kiện theo ngày (14 ngày)", en: "Daily visitors & events (14 days)" },
+  "pl.visitors": { vi: "Người dùng", en: "Visitors" },
+  "pl.events": { vi: "Sự kiện", en: "Events" },
+  "pl.top_tabs": { vi: "Tab được xem nhiều", en: "Most viewed tabs" },
+  "pl.top_matchups": { vi: "Cặp đấu được dự đoán nhiều nhất", en: "Most predicted matchups" },
+  "pl.lang_split": { vi: "Ngôn ngữ", en: "Language" },
+  "pl.no_usage": { vi: "Chưa có dữ liệu hành vi — sẽ tích lũy khi user dùng app.", en: "No usage data yet — accumulates as users browse." },
 
   // common
   "common.loading": { vi: "Đang tải…", en: "Loading…" },

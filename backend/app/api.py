@@ -177,6 +177,29 @@ async def refresh():
     return {"ok": True, "sim_computed_at": sim["computed_at"]}
 
 
+# ── Usage analytics ──────────────────────────────────────────
+from pydantic import BaseModel
+
+
+class TrackEvent(BaseModel):
+    v: str                      # anonymous visitor uuid (client-generated)
+    t: str                      # event type (whitelisted)
+    d: dict | None = None       # small payload
+
+
+@router.post("/track", status_code=204)
+async def track(ev: TrackEvent):
+    from . import analytics
+    analytics.record(ev.v, ev.t, ev.d)
+    return None
+
+
+@router.get("/pipeline/analytics", dependencies=[Depends(require_admin)])
+async def pipeline_analytics(days: int = Query(default=14, ge=1, le=60)):
+    from . import analytics
+    return analytics.summary(days=days)
+
+
 # ── Admin pipeline dashboard ─────────────────────────────────
 @router.get("/pipeline/status", dependencies=[Depends(require_admin)])
 async def pipeline_status():
