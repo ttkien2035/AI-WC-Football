@@ -231,7 +231,7 @@ function HalvesPanel({ pred }: { pred: Prediction }) {
   const h = pred.halves!;
   const chips = (scores?: { home: number; away: number; p: number }[]) =>
     (scores ?? []).map((s, i) => (
-      <span key={i} className="rounded bg-slate-200 px-1.5 py-0.5 text-xs font-semibold tabular-nums dark:bg-slate-800">
+      <span key={i} className="rounded bg-slate-200/80 px-1.5 py-0.5 text-xs font-semibold tabular-nums dark:bg-white/[0.1]">
         {s.home}–{s.away} <span className="opacity-70">{pct(s.p, 0)}</span>
       </span>
     ));
@@ -243,7 +243,7 @@ function HalvesPanel({ pred }: { pred: Prediction }) {
         {(["h1", "h2"] as const).map((key) => {
           const half = h[key];
           return (
-            <div key={key} className="rounded-xl bg-slate-100 p-2.5 dark:bg-slate-800">
+            <div key={key} className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
               <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-400">
                 {t(`match.${key}`)} {half?.note && `(${half.note})`}
               </p>
