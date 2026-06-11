@@ -47,19 +47,18 @@ Script sẽ:
 
 Deploy lại sau khi sửa code: chạy lại đúng lệnh đó (rsync chỉ đẩy phần thay đổi).
 
-## Cách 2 — Deploy thủ công trên server
+## Cách 2 — Clone từ GitHub trên server (1 script)
 
 ```bash
-ssh root@SERVER_IP
-mkdir -p /opt/wc2026 && cd /opt/wc2026
-# đưa code lên bằng git clone hoặc scp/rsync từ máy local, rồi:
+# B1 (máy LOCAL): copy .env lên server — file này gitignore, KHÔNG có trên GitHub
+scp .env root@SERVER_IP:/opt/wc2026/.env     # tạo thư mục trước nếu cần: ssh root@SERVER_IP mkdir -p /opt/wc2026
 
-cat > .env << 'EOF'
-FOOTBALL_API_KEY=your_key_here
-ODDS_API_KEY=your_key_here
-EOF
+# B2 (trên SERVER): clone + chạy 1 script là xong
+git clone https://github.com/ttkien2035/AI-WC-Football.git /opt/wc2026
+cd /opt/wc2026 && bash deploy/deploy.sh
 
-bash deploy/deploy.sh
+# Cập nhật khi có commit mới:
+bash deploy/deploy.sh --update      # git pull + rebuild + restart
 ```
 
 ---
