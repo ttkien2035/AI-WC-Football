@@ -53,6 +53,12 @@ def invalidate(prefix: str) -> None:
         c.execute("DELETE FROM cache WHERE k LIKE ?", (prefix + "%",))
 
 
+def count(prefix: str) -> int:
+    with _lock, _conn() as c:
+        row = c.execute("SELECT COUNT(*) FROM cache WHERE k LIKE ?", (prefix + "%",)).fetchone()
+    return row[0] if row else 0
+
+
 def age(key: str):
     with _lock, _conn() as c:
         row = c.execute("SELECT ts FROM cache WHERE k=?", (key,)).fetchone()

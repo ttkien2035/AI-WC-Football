@@ -73,6 +73,13 @@ def _next_kickoff_s(matches) -> float | None:
 async def _tick() -> float:
     """One refresh pass. Returns seconds to sleep until the next pass."""
     matches = await service.get_matches(force=True)
+    cache.put("scheduler:last_tick",
+              datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    try:
+        from . import pipeline
+        await pipeline.record_prematch(matches)
+    except Exception:
+        log.exception("prematch snapshot failed")
 
     finished = {m["id"] for m in matches if m["status"] == "FINISHED"}
     new_finished = finished - _state["finished_ids"]

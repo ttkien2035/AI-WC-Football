@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Moon, Sun, Trophy, RefreshCw, Languages } from "lucide-react";
-import { api, type Match } from "./api";
+import { Moon, Sun, Trophy, RefreshCw, Languages, ShieldCheck } from "lucide-react";
+import { api, adminToken, type Match } from "./api";
 import { StatusDot, Flag } from "./components/ui";
 import { useLang, useT } from "./i18n";
 import Groups from "./views/Groups";
@@ -10,21 +10,52 @@ import TitleOdds from "./views/TitleOdds";
 import Odds from "./views/Odds";
 import Accuracy from "./views/Accuracy";
 import Live from "./views/Live";
-
-const TABS = [
-  { id: "live", key: "tab.live", el: <Live /> },
-  { id: "groups", key: "tab.groups", el: <Groups /> },
-  { id: "bracket", key: "tab.bracket", el: <Bracket /> },
-  { id: "match", key: "tab.match", el: <MatchSim /> },
-  { id: "title", key: "tab.title", el: <TitleOdds /> },
-  { id: "odds", key: "tab.odds", el: <Odds /> },
-  { id: "accuracy", key: "tab.accuracy", el: <Accuracy /> },
-];
+import Pipeline from "./views/Pipeline";
 
 export default function App() {
   const t = useT();
   const { lang, setLang } = useLang();
   const [tab, setTab] = useState("groups");
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // validate stored admin token once on boot
+  useEffect(() => {
+    if (adminToken.get()) {
+      api.pipelineStatus().then(() => setIsAdmin(true)).catch(() => adminToken.clear());
+    }
+  }, []);
+
+  const adminLogin = async () => {
+    if (isAdmin) { setTab("pipeline"); return; }
+    const token = prompt(t("pl.token_prompt"));
+    if (!token) return;
+    adminToken.set(token.trim());
+    try {
+      await api.pipelineStatus();
+      setIsAdmin(true);
+      setTab("pipeline");
+    } catch {
+      adminToken.clear();
+      alert(t("pl.token_bad"));
+    }
+  };
+
+  const adminLogout = () => {
+    adminToken.clear();
+    setIsAdmin(false);
+    setTab("groups");
+  };
+
+  const TABS = [
+    { id: "live", key: "tab.live", el: <Live /> },
+    { id: "groups", key: "tab.groups", el: <Groups /> },
+    { id: "bracket", key: "tab.bracket", el: <Bracket /> },
+    { id: "match", key: "tab.match", el: <MatchSim /> },
+    { id: "title", key: "tab.title", el: <TitleOdds /> },
+    { id: "odds", key: "tab.odds", el: <Odds /> },
+    { id: "accuracy", key: "tab.accuracy", el: <Accuracy /> },
+    ...(isAdmin ? [{ id: "pipeline", key: "tab.pipeline", el: <Pipeline onLogout={adminLogout} /> }] : []),
+  ];
   const [dark, setDark] = useState(() => localStorage.getItem("theme") !== "light");
   const [live, setLive] = useState<Match[]>([]);
   const [today, setToday] = useState<Match[]>([]);
@@ -77,16 +108,27 @@ export default function App() {
             >
               <Languages size={14} /> {lang === "vi" ? "VI" : "EN"}
             </button>
-            <button
-              onClick={() => fetch("/api/refresh", { method: "POST" }).then(() => location.reload())}
-              title={t("app.refresh")}
-              className="rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800"
-            >
-              <RefreshCw size={16} />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() =>
+                  fetch("/api/refresh", {
+                    method: "POST",
+                    headers: { "X-Admin-Token": adminToken.get() ?? "" },
+                  }).then(() => location.reload())}
+                title={t("app.refresh")}
+                className="rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800"
+              >
+                <RefreshCw size={16} />
+              </button>
+            )}
             <button onClick={() => setDark(!dark)}
               className="rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800">
               {dark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+            <button onClick={adminLogin} title={t("pl.admin_only")}
+              className={`rounded-full p-2 hover:bg-slate-200 dark:hover:bg-slate-800 ${
+                isAdmin ? "text-emerald-500" : "text-slate-300 dark:text-slate-700"}`}>
+              <ShieldCheck size={16} />
             </button>
           </div>
         </div>

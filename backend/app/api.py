@@ -1,14 +1,21 @@
 """JSON API consumed by the React frontend."""
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from . import evaluation, service
+from . import evaluation, pipeline, service
 from .config import settings
 from .engine import ml_ensemble
 from .static_data import MATCH_SCHEDULE, R32, R16, QF, SF, TEAMS
 
 router = APIRouter(prefix="/api")
+
+
+def require_admin(x_admin_token: str | None = Header(default=None)):
+    """Admin gate for monitoring + write endpoints. Returns 404 (not 403) so
+    the endpoints' existence isn't advertised to the public."""
+    if not settings.admin_token or x_admin_token != settings.admin_token:
+        raise HTTPException(404, "Not Found")
 
 
 @router.get("/health")
@@ -138,7 +145,7 @@ async def ml_status():
     }
 
 
-@router.post("/ml/retrain")
+@router.post("/ml/retrain", dependencies=[Depends(require_admin)])
 async def ml_retrain():
     from . import scheduler
     ok = await scheduler.maybe_retrain(force=True)
@@ -163,11 +170,22 @@ async def evaluate_team(tla: str, n: int = Query(default=12, ge=1, le=50)):
     return evaluation.team_recent(tla.upper(), n)
 
 
-@router.post("/refresh")
+@router.post("/refresh", dependencies=[Depends(require_admin)])
 async def refresh():
     await service.get_matches(force=True)
     sim = await service.run_simulation(force=True)
     return {"ok": True, "sim_computed_at": sim["computed_at"]}
+
+
+# ── Admin pipeline dashboard ─────────────────────────────────
+@router.get("/pipeline/status", dependencies=[Depends(require_admin)])
+async def pipeline_status():
+    return await pipeline.status()
+
+
+@router.get("/pipeline/review", dependencies=[Depends(require_admin)])
+async def pipeline_review(limit: int = Query(default=30, ge=1, le=104)):
+    return await pipeline.review(limit=limit)
 
 
 @router.get("/meta/static")

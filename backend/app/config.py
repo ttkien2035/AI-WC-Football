@@ -13,6 +13,7 @@ class Settings(BaseSettings):
 
     football_api_key: str = ""
     odds_api_key: str = ""
+    admin_token: str = ""      # gates /api/pipeline/*, /api/refresh, /api/ml/retrain
 
     fd_base: str = "https://api.football-data.org/v4"
     odds_base: str = "https://api.the-odds-api.com/v4"

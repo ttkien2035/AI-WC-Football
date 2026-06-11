@@ -134,6 +134,22 @@ const j = async <T,>(url: string): Promise<T> => {
   return r.json();
 };
 
+// ── Admin (X-Admin-Token gated endpoints) ─────────────────────
+export const adminToken = {
+  get: () => localStorage.getItem("admin_token"),
+  set: (t: string) => localStorage.setItem("admin_token", t),
+  clear: () => localStorage.removeItem("admin_token"),
+};
+
+export const jAdmin = async <T,>(url: string, init?: RequestInit): Promise<T> => {
+  const r = await fetch(url, {
+    ...init,
+    headers: { ...(init?.headers ?? {}), "X-Admin-Token": adminToken.get() ?? "" },
+  });
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  return r.json();
+};
+
 export const api = {
   teams: () => j<Record<string, TeamRow>>("/api/teams"),
   groups: () =>
@@ -156,6 +172,47 @@ export const api = {
   evalH2h: (h: string, a: string, n = 10) => j<EvalResult>(`/api/evaluate/h2h/${h}/${a}?n=${n}`),
   evalTeam: (tla: string, n = 12) => j<EvalResult>(`/api/evaluate/team/${tla}?n=${n}`),
   mlStatus: () => j<MlStatus>("/api/ml/status"),
+  pipelineStatus: () => jAdmin<PipelineStatus>("/api/pipeline/status"),
+  pipelineReview: (limit = 30) => jAdmin<PipelineReview>(`/api/pipeline/review?limit=${limit}`),
+  mlRetrain: () => jAdmin<{ ok: boolean }>("/api/ml/retrain", { method: "POST" }),
+};
+
+export type PipelineStatus = {
+  collection: {
+    matches_total: number; finished: number; live_now: number;
+    match_log: number; prematch_snapshots: number; timeline_series: number;
+    teams_with_corner_stats: number;
+  };
+  scheduler: { last_tick: string | null; live_mode: boolean };
+  ml: {
+    available: boolean; online_updates_applied: number;
+    last_retrain: string | null; retraining_now: boolean;
+    next_retrain_utc: string; weights: Record<string, number> | null;
+    test_rps: number | null;
+  };
+  elo_movers: { tla: string; delta: number; elo: number }[];
+  sources: Record<string, { ok: boolean }>;
+};
+
+export type ReviewRow = {
+  match_id: number; date: string; stage: string;
+  home: Match["home"]; away: Match["away"];
+  score: { home: number; away: number };
+  ht_score?: { home: number; away: number } | null;
+  probs: Record<string, number>; probs_source: string;
+  predicted: string; actual: string; correct: boolean;
+  p_actual: number; tag: string;
+  factors: {
+    red_cards?: { home: number; away: number } | null;
+    corners?: { home: number | null; away: number | null } | null;
+    ht_swing: boolean;
+    absence?: unknown; lineup_aware?: boolean;
+  };
+  elo_shift: { home: number; away: number } | null;
+};
+export type PipelineReview = {
+  matches: ReviewRow[];
+  summary: { n: number; correct: number; accuracy: number; rps: number; logloss: number } | null;
 };
 
 export type EvalMatch = {
