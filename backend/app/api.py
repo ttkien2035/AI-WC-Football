@@ -177,8 +177,45 @@ async def refresh():
     return {"ok": True, "sim_computed_at": sim["computed_at"]}
 
 
-# ── Usage analytics ──────────────────────────────────────────
+# ── AI chat ──────────────────────────────────────────────────
+from fastapi import Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+
+class ChatBody(BaseModel):
+    v: str
+    message: str | None = None
+    skill: str | None = None
+    params: dict = {}
+    history: list = []
+    lang: str = "vi"
+
+
+@router.post("/chat")
+async def chat_endpoint(body: ChatBody, request: Request):
+    from . import chat
+    if not settings.gemini_api_key:
+        raise HTTPException(503, "chat not configured")
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "noip")
+    gen = chat.stream_chat(body.v, ip, body.message, body.skill,
+                           body.params, body.history, body.lang)
+    return StreamingResponse(gen, media_type="application/x-ndjson",
+                             headers={"X-Accel-Buffering": "no",
+                                      "Cache-Control": "no-cache"})
+
+
+@router.get("/chat/quota")
+async def chat_quota(v: str, request: Request):
+    from . import chat
+    ip = request.headers.get("x-real-ip") or (request.client.host if request.client else "noip")
+    allowed, remaining = chat.check_quota(v, ip)
+    live = any(m["status"] in service.LIVE_STATUSES for m in await service.get_matches())
+    return {"enabled": bool(settings.gemini_api_key),
+            "allowed": allowed, "remaining": remaining, "live_now": live}
+
+
+# ── Usage analytics ──────────────────────────────────────────
 
 
 class TrackEvent(BaseModel):

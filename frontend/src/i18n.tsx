@@ -219,6 +219,29 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "pl.lang_split": { vi: "Ngôn ngữ", en: "Language" },
   "pl.no_usage": { vi: "Chưa có dữ liệu hành vi — sẽ tích lũy khi user dùng app.", en: "No usage data yet — accumulates as users browse." },
 
+  // AI chat
+  "chat.title": { vi: "Football AI Analysis", en: "Football AI Analysis" },
+  "chat.greeting": {
+    vi: "Xin chào! ⚽ Tôi là chuyên gia phân tích AI của World Cup 2026. Hỏi tôi về dự đoán, tỉ lệ, kèo, đội hình — tôi trả lời bằng số liệu thật từ model. Bạn có 5 câu hỏi mỗi ngày!",
+    en: "Hi! ⚽ I'm the AI analyst for World Cup 2026. Ask me about predictions, odds, lineups — I answer with real model data. You get 5 questions a day!",
+  },
+  "chat.greeting_live": {
+    vi: "🔴 Đang có trận live! Hỏi tôi về diễn biến, xác suất thắng thay đổi thế nào, hoặc bất cứ trận nào khác.",
+    en: "🔴 A match is LIVE now! Ask me about it — or any other fixture.",
+  },
+  "chat.placeholder": { vi: "Hỏi về trận đấu, tỉ lệ, kèo…", en: "Ask about matches, odds, predictions…" },
+  "chat.thinking": { vi: "Đang phân tích…", en: "Analyzing…" },
+  "chat.quota_out": {
+    vi: "⚡ Bạn đã dùng hết 5 câu hôm nay. Quay lại ngày mai nhé! Trong lúc chờ, khám phá tab Dự đoán trận & Tỉ lệ kèo.",
+    en: "⚡ You've used all 5 questions today. Come back tomorrow! Meanwhile, explore the Match Sim & Odds tabs.",
+  },
+  "chat.error": { vi: "Có lỗi khi kết nối AI — thử lại sau nhé.", en: "AI connection error — please try again later." },
+  "chat.disclaimer": { vi: "Tham khảo thống kê — không phải khuyến nghị cá cược", en: "Statistical reference — not betting advice" },
+  "chat.chip_deep": { vi: "Phân tích sâu trận {m}", en: "Deep-dive {m}" },
+  "chat.chip_value": { vi: "Soi kèo value hôm nay", en: "Find today's value bets" },
+  "chat.chip_title": { vi: "Đội nào dễ vô địch nhất?", en: "Who's most likely to win it all?" },
+  "chat.chip_whatif": { vi: "Nếu {m} có kết quả sốc thì sao?", en: "What if {m} ends in a shock?" },
+
   // common
   "common.loading": { vi: "Đang tải…", en: "Loading…" },
   "common.date": { vi: "Ngày", en: "Date" },

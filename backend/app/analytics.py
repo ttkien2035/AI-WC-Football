@@ -15,7 +15,7 @@ from .cache import _CACHE_DIR
 _DB = _CACHE_DIR / "cache.sqlite"
 _lock = threading.Lock()
 
-EVENT_TYPES = {"visit", "tab", "predict", "lang", "live_view", "odds_view"}
+EVENT_TYPES = {"visit", "tab", "predict", "lang", "live_view", "odds_view", "chat"}
 _MAX_STR = 64
 
 

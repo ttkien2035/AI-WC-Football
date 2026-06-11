@@ -1,5 +1,6 @@
 """App settings. Reads the repo-root .env (FOOTBALL_API_KEY, ODDS_API_KEY)."""
 from pathlib import Path
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +15,14 @@ class Settings(BaseSettings):
     football_api_key: str = ""
     odds_api_key: str = ""
     admin_token: str = ""      # gates /api/pipeline/*, /api/refresh, /api/ml/retrain
+    gemini_api_key: str = Field(
+        default="", validation_alias=AliasChoices("GEMINI_API", "GEMINI_API_KEY"))
+
+    # AI chat (cost control)
+    chat_model: str = "gemini-2.5-flash"
+    chat_daily_per_user: int = 5
+    chat_daily_global: int = 300
+    chat_max_output_tokens: int = 512
 
     fd_base: str = "https://api.football-data.org/v4"
     odds_base: str = "https://api.the-odds-api.com/v4"

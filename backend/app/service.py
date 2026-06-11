@@ -214,6 +214,62 @@ async def run_simulation(runs: int | None = None, force: bool = False) -> dict:
     return result
 
 
+async def simulate_what_if(home: str, away: str, gh: int, ga: int,
+                           runs: int = 20_000) -> dict:
+    """Hypothetical-scenario sim: force one fixture's result and re-run the
+    tournament; returns probability deltas vs the current simulation.
+    Compute-only — never touches the cached main simulation."""
+    teams = await get_teams()
+    matches = await get_matches()
+    fixture = next((m for m in matches
+                    if {m["home"]["tla"], m["away"]["tla"]} == {home, away}
+                    and m["stage"] == "GROUP_STAGE"), None)
+    if fixture is None:
+        raise ValueError(f"no group fixture {home} vs {away}")
+
+    forced = []
+    for m in matches:
+        if m["id"] == fixture["id"]:
+            m = {**m, "status": "FINISHED"}
+            flip = m["home"]["tla"] != home
+            m["score"] = {**m["score"],
+                          "home": ga if flip else gh, "away": gh if flip else ga}
+        forced.append(m)
+
+    groups: dict[str, list[str]] = {}
+    for tla, t in teams.items():
+        groups.setdefault(t["group"], []).append(tla)
+    for g in groups:
+        groups[g].sort(key=lambda t: teams[t]["position"])
+
+    finished = _finished_tuple(matches)
+    ml_elo = ml_ensemble.elo_by_tla(finished)
+    goal_coefs = None
+    if ml_elo and all(t in ml_elo for t in teams):
+        elo_map, goal_coefs = ml_elo, ml_ensemble._artifacts()["rates"]
+    else:
+        elo_map = {t: v["elo"] for t, v in teams.items()}
+
+    hypo = tournament.simulate(
+        n=runs, elo_by_tla=elo_map, groups=groups,
+        group_matches=[m for m in forced if m["stage"] == "GROUP_STAGE"],
+        real_ko=_real_ko(forced), goal_coefs=goal_coefs)
+
+    base = await latest_simulation() or await run_simulation()
+    out = {"scenario": f"{home} {gh}-{ga} {away}", "runs": runs, "deltas": {}}
+    movers = []
+    for t, hv in hypo["teams"].items():
+        bv = base["teams"].get(t, {})
+        d_champ = round(hv["champion"] - bv.get("champion", 0), 4)
+        d_r32 = round(hv["r32"] - bv.get("r32", 0), 4)
+        if t in (home, away) or abs(d_champ) > 0.005 or abs(d_r32) > 0.02:
+            movers.append({"tla": t, "champion": hv["champion"], "d_champion": d_champ,
+                           "advance_r32": hv["r32"], "d_r32": d_r32})
+    movers.sort(key=lambda x: -(abs(x["d_r32"]) + abs(x["d_champion"])))
+    out["deltas"] = movers[:8]
+    return out
+
+
 async def latest_simulation() -> dict | None:
     key = cache.get("sim:latest_key", ttl=7 * 86_400)
     if key:

@@ -12,6 +12,7 @@ import Odds from "./views/Odds";
 import Accuracy from "./views/Accuracy";
 import Live from "./views/Live";
 import Pipeline from "./views/Pipeline";
+import ChatWidget from "./components/ChatWidget";
 
 export default function App() {
   const t = useT();
@@ -188,6 +189,8 @@ export default function App() {
       </header>
 
       <main>{TABS.find((x) => x.id === tab)?.el}</main>
+
+      <ChatWidget />
 
       <footer className="mt-10 text-center text-[11px] text-slate-400">
         <p>{t("app.footer")}</p>

@@ -1,0 +1,456 @@
+"""Football AI Analysis chatbot — agentic Gemini orchestrator.
+
+- 9 read-only tools over the app's own engines (predictions, odds, H2H,
+  what-if simulator, news search) via Gemini function calling
+- NDJSON stream protocol: {"type": tool|delta|done|error, ...} per line
+- Hard cost controls: 5 questions/day/visitor, global daily cap, IP backstop,
+  thinkingBudget=0, max_output_tokens, <=3 tool rounds
+"""
+import json
+import logging
+from datetime import datetime, timezone
+
+import httpx
+
+from . import cache, evaluation, service
+from .config import settings
+from .static_data import TEAMS
+
+log = logging.getLogger("chat")
+
+GEMINI = "https://generativelanguage.googleapis.com/v1beta/models"
+MAX_TOOL_ROUNDS = 3
+
+# ── team name resolver (vi/en aliases) ──────────────────────────────────
+VI_ALIASES = {
+    "tây ban nha": "ESP", "bồ đào nha": "POR", "đức": "GER", "pháp": "FRA",
+    "anh": "ENG", "hà lan": "NED", "bỉ": "BEL", "thụy sĩ": "SUI",
+    "thụy điển": "SWE", "na uy": "NOR", "áo": "AUT", "croatia": "CRO",
+    "scotland": "SCO", "séc": "CZE", "czech": "CZE", "bosnia": "BIH",
+    "hàn quốc": "KOR", "hàn": "KOR", "nhật bản": "JPN", "nhật": "JPN",
+    "iran": "IRN", "iraq": "IRQ", "qatar": "QAT", "ả rập xê út": "KSA",
+    "saudi": "KSA", "jordan": "JOR", "uzbekistan": "UZB", "úc": "AUS",
+    "australia": "AUS", "new zealand": "NZL", "mỹ": "USA", "hoa kỳ": "USA",
+    "mexico": "MEX", "mễ": "MEX", "canada": "CAN", "panama": "PAN",
+    "haiti": "HAI", "curacao": "CUW", "brazil": "BRA", "bra-xin": "BRA",
+    "argentina": "ARG", "uruguay": "URY", "colombia": "COL", "ecuador": "ECU",
+    "paraguay": "PAR", "ma rốc": "MAR", "morocco": "MAR", "ai cập": "EGY",
+    "senegal": "SEN", "ghana": "GHA", "algeria": "ALG", "tunisia": "TUN",
+    "bờ biển ngà": "CIV", "nam phi": "RSA", "cape verde": "CPV",
+    "congo": "COD", "tây ban nhà": "ESP",
+}
+_NAME_TO_TLA = {t["name"].lower(): tla for tla, t in TEAMS.items()}
+
+
+def resolve_team(s: str) -> str | None:
+    s = (s or "").strip().lower()
+    if s.upper() in TEAMS:
+        return s.upper()
+    return _NAME_TO_TLA.get(s) or VI_ALIASES.get(s)
+
+
+# ── quota ────────────────────────────────────────────────────────────────
+def _qkey(kind: str, ident: str) -> str:
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"chatquota:{day}:{kind}:{ident}"
+
+
+def check_quota(visitor: str, ip: str) -> tuple[bool, int]:
+    """(allowed, remaining_for_visitor)"""
+    v, _ = cache.get_stale(_qkey("v", visitor))
+    i, _ = cache.get_stale(_qkey("ip", ip))
+    g, _ = cache.get_stale(_qkey("g", "all"))
+    v, i, g = v or 0, i or 0, g or 0
+    remaining = max(0, settings.chat_daily_per_user - v)
+    allowed = (v < settings.chat_daily_per_user
+               and i < settings.chat_daily_per_user * 3
+               and g < settings.chat_daily_global)
+    return allowed, remaining
+
+
+def consume_quota(visitor: str, ip: str) -> int:
+    v, _ = cache.get_stale(_qkey("v", visitor))
+    i, _ = cache.get_stale(_qkey("ip", ip))
+    g, _ = cache.get_stale(_qkey("g", "all"))
+    cache.put(_qkey("v", visitor), (v or 0) + 1)
+    cache.put(_qkey("ip", ip), (i or 0) + 1)
+    cache.put(_qkey("g", "all"), (g or 0) + 1)
+    return max(0, settings.chat_daily_per_user - (v or 0) - 1)
+
+
+# ── tools ────────────────────────────────────────────────────────────────
+def _team_arg(desc_vi: str):
+    return {"type": "string", "description": f"{desc_vi} — team code (ESP) or name (Spain / Tây Ban Nha)"}
+
+
+TOOL_DECLS = [
+    {"name": "get_live_and_today",
+     "description": "Live matches right now (score, minute, cards, corners) and today's fixtures.",
+     "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_match_prediction",
+     "description": "Full model prediction for a matchup: win/draw/loss %, expected goals, model components (ML/market/Elo), halves, corners, extra-time/penalties, key-player absences.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách")},
+         "required": ["home", "away"]}},
+    {"name": "get_team_overview",
+     "description": "One team: Elo, FIFA rank, group standing, tournament odds (champion, reach R32/QF...), tactical profile, key players.",
+     "parameters": {"type": "object", "properties": {"team": _team_arg("Đội")},
+                    "required": ["team"]}},
+    {"name": "get_title_odds",
+     "description": "Championship and advancement probabilities for the top teams (Monte Carlo, 50k runs).",
+     "parameters": {"type": "object", "properties": {
+         "top_n": {"type": "integer", "description": "default 8"}}}},
+    {"name": "get_group_standings",
+     "description": "Standings + qualification odds for one group (A..L).",
+     "parameters": {"type": "object", "properties": {
+         "group": {"type": "string", "description": "Group letter A-L"}},
+         "required": ["group"]}},
+    {"name": "get_h2h_record",
+     "description": "Past head-to-head meetings since 2018, with what the model predicted for each and whether it was right.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội 1"), "away": _team_arg("Đội 2")},
+         "required": ["home", "away"]}},
+    {"name": "get_market_odds",
+     "description": "Bookmaker odds (1X2, totals, BTTS) vs the model's fair odds for a matchup, with value flags.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách")},
+         "required": ["home", "away"]}},
+    {"name": "what_if",
+     "description": "Scenario simulator: force a hypothetical result for a group match and re-run 20,000 tournament simulations; returns how title/advancement odds shift.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách"),
+         "home_goals": {"type": "integer"}, "away_goals": {"type": "integer"}},
+         "required": ["home", "away", "home_goals", "away_goals"]}},
+    {"name": "search_football_news",
+     "description": "Search the web (Google) for fresh football news: injuries, form, lineups rumours. Use only when internal data cannot answer.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string"}}, "required": ["query"]}},
+]
+
+TOOL_LABELS = {
+    "get_live_and_today": ("Xem trận live & hôm nay", "Checking live & today's matches"),
+    "get_match_prediction": ("Tra dự đoán trận đấu", "Fetching match prediction"),
+    "get_team_overview": ("Phân tích đội bóng", "Analyzing team"),
+    "get_title_odds": ("Xem cửa vô địch", "Fetching title odds"),
+    "get_group_standings": ("Xem cục diện bảng đấu", "Fetching group standings"),
+    "get_h2h_record": ("Tra lịch sử đối đầu", "Checking head-to-head"),
+    "get_market_odds": ("So kèo thị trường vs model", "Comparing market vs model odds"),
+    "what_if": ("Mô phỏng kịch bản giả định (20k sims)", "Simulating what-if scenario (20k sims)"),
+    "search_football_news": ("Search tin tức bóng đá", "Searching football news"),
+}
+
+
+async def _exec_tool(name: str, args: dict) -> dict:
+    try:
+        if name == "get_live_and_today":
+            ms = await service.get_matches()
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            return {"live": [_mt(m) for m in ms if m["status"] in service.LIVE_STATUSES],
+                    "today": [_mt(m) for m in ms if m["utcDate"][:10] == today]}
+        if name == "get_match_prediction":
+            h, a = _resolve2(args)
+            p = await service.predict(h, a)
+            return {"home": h, "away": a, "probs": p["probs"],
+                    "expected_goals": p["lambdas"],
+                    "components": {k: v for k, v in p["components"].items()
+                                   if k in ("ml", "market", "poisson", "weights")},
+                    "top_scores": p["scorelines"][:3], "over25": p["over25"],
+                    "halves_htft_top": sorted((p.get("halves", {}).get("htft") or {}).items(),
+                                              key=lambda x: -x[1])[:3],
+                    "corners_expected": p.get("corners", {}).get("expected"),
+                    "knockout": {k: p["knockout"][k] for k in
+                                 ("p_extra_time", "p_penalties", "advance")} if p.get("knockout") else None,
+                    "key_absences": p.get("absence_penalty"),
+                    "elo": p["elo"]}
+        if name == "get_team_overview":
+            t = resolve_team(args.get("team", ""))
+            if not t:
+                return {"error": "unknown team"}
+            teams = await service.get_teams()
+            sim = await service.latest_simulation() or {}
+            from .team_profiles import PROFILES
+            return {"team": t, **{k: teams[t][k] for k in
+                    ("name", "group", "position", "played", "points", "gf", "ga", "elo", "fifa_rank")},
+                    "sim_odds": (sim.get("teams") or {}).get(t),
+                    "profile": PROFILES.get(t)}
+        if name == "get_title_odds":
+            sim = await service.latest_simulation() or await service.run_simulation()
+            n = int(args.get("top_n") or 8)
+            top = sorted(sim["teams"].items(), key=lambda kv: -kv[1]["champion"])[:n]
+            return {"runs": sim["runs"],
+                    "top": [{"team": t, **v} for t, v in top]}
+        if name == "get_group_standings":
+            g = (args.get("group") or "").strip().upper()[-1]
+            teams = await service.get_teams()
+            sim = await service.latest_simulation() or {}
+            rows = sorted((t for t in teams.values() if t["group"] == g),
+                          key=lambda r: r["position"])
+            return {"group": g, "table": [
+                {**{k: r[k] for k in ("tla", "name", "played", "won", "draw",
+                                      "lost", "gd", "points")},
+                 "qualify_odds": ((sim.get("teams") or {}).get(r["tla"]) or {}).get("r32")}
+                for r in rows]}
+        if name == "get_h2h_record":
+            h, a = _resolve2(args)
+            return evaluation.h2h(h, a, n=6)
+        if name == "get_market_odds":
+            h, a = _resolve2(args)
+            board = await service.odds_board(limit=40)
+            for r in board["matches"]:
+                if {r["home"]["tla"], r["away"]["tla"]} == {h, a}:
+                    return {"home": r["home"]["tla"], "away": r["away"]["tla"],
+                            "market": r.get("market"), "fair": r["fair"],
+                            "value_flags": r.get("value")}
+            return {"error": "no odds for this matchup yet"}
+        if name == "what_if":
+            h, a = _resolve2(args)
+            return await service.simulate_what_if(
+                h, a, int(args["home_goals"]), int(args["away_goals"]))
+        if name == "search_football_news":
+            return await _news(args.get("query", ""))
+        return {"error": f"unknown tool {name}"}
+    except Exception as e:
+        log.warning("tool %s failed: %s", name, e)
+        return {"error": str(e)[:200]}
+
+
+def _resolve2(args: dict) -> tuple[str, str]:
+    h = resolve_team(args.get("home", ""))
+    a = resolve_team(args.get("away", ""))
+    if not h or not a:
+        raise ValueError(f"unknown team in {args}")
+    return h, a
+
+
+def _mt(m: dict) -> dict:
+    return {"home": m["home"]["tla"], "away": m["away"]["tla"],
+            "status": m["status"], "minute": m.get("minute_estimate"),
+            "score": m["score"], "kickoff_utc": m["utcDate"],
+            "red_cards": m.get("red_cards"), "corners": m.get("corners")}
+
+
+async def _news(query: str) -> dict:
+    """Sub-call with Google Search grounding (can't mix with function tools)."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(
+                f"{GEMINI}/{settings.chat_model}:generateContent",
+                headers={"x-goog-api-key": settings.gemini_api_key},
+                json={"contents": [{"parts": [{"text":
+                      f"Summarize in <=120 words the latest football news about: {query}"}]}],
+                      "tools": [{"google_search": {}}],
+                      "generationConfig": {"maxOutputTokens": 256,
+                                           "thinkingConfig": {"thinkingBudget": 0}}})
+            r.raise_for_status()
+            d = r.json()
+        parts = d["candidates"][0]["content"]["parts"]
+        text = " ".join(p.get("text", "") for p in parts)
+        cites = []
+        meta = d["candidates"][0].get("groundingMetadata", {})
+        for ch in (meta.get("groundingChunks") or [])[:4]:
+            w = ch.get("web") or {}
+            if w.get("uri"):
+                cites.append({"title": w.get("title", ""), "url": w["uri"]})
+        return {"summary": text.strip(), "sources": cites}
+    except Exception as e:
+        return {"error": f"news search unavailable: {str(e)[:120]}"}
+
+
+# ── skills (deterministic tool plans) ───────────────────────────────────
+SKILLS = {
+    "deep_dive": {
+        "plan": ["get_match_prediction", "get_h2h_record", "get_market_odds"],
+        "prompt_vi": "Phân tích sâu trận {home} vs {away}: nhận định tổng hợp từ dự đoán, lịch sử đối đầu, kèo. Kết luận rõ ràng.",
+        "prompt_en": "Deep-dive analysis of {home} vs {away} from the prediction, H2H and odds data. Clear verdict."},
+    "value_hunt": {
+        "plan": [],
+        "prompt_vi": "Soi các kèo value hôm nay: so fair odds của model với kèo thị trường, chỉ ra chênh lệch đáng chú ý và lý do.",
+        "prompt_en": "Find today's value bets: compare model fair odds vs market, highlight notable gaps and why."},
+    "group_race": {
+        "plan": ["get_group_standings"],
+        "prompt_vi": "Phân tích cục diện bảng {group}: ai sáng cửa đi tiếp, kịch bản nào cần chú ý.",
+        "prompt_en": "Analyze group {group}: who advances, key scenarios."},
+}
+
+
+# ── system prompt ────────────────────────────────────────────────────────
+def _system(lang: str) -> str:
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    return f"""You are "WC Analyst" — the in-app football analyst of an AI World Cup 2026 prediction platform. Now: {now}. Tournament: FIFA World Cup 2026 (48 teams, Jun 11 - Jul 19).
+
+RULES:
+- Use the provided tools for EVERY number you cite. Never invent statistics. If a tool errors, say what you couldn't fetch.
+- Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
+- Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
+- ONLY discuss this World Cup / football analysis. Politely decline anything else (coding, politics, other tasks) in one sentence.
+- Predictions are statistical estimates — when relevant, append a one-line reminder that this is reference, not betting advice.
+- End your reply with one line exactly: FOLLOWUPS: q1 | q2 (two short follow-up questions in the user's language). This line will be hidden from the user.
+- User interface language hint: {lang}."""
+
+
+# ── orchestrator ─────────────────────────────────────────────────────────
+async def stream_chat(visitor: str, ip: str, message: str | None,
+                      skill: str | None, params: dict, history: list, lang: str):
+    """Async generator yielding NDJSON lines."""
+    allowed, remaining = check_quota(visitor or "anon", ip or "noip")
+    if not allowed:
+        yield json.dumps({"type": "error", "code": "quota",
+                          "remaining": 0}) + "\n"
+        return
+    remaining = consume_quota(visitor or "anon", ip or "noip")
+
+    # analytics
+    try:
+        from . import analytics
+        analytics.record(visitor or "anon", "chat",
+                         {"skill": skill or "free", "lang": lang})
+    except Exception:
+        pass
+
+    # ----- build contents -----
+    contents = []
+    for turn in (history or [])[-6:]:
+        role = "user" if turn.get("role") == "user" else "model"
+        contents.append({"role": role, "parts": [{"text": str(turn.get("text", ""))[:500]}]})
+
+    pre_tools_results = []
+    if skill in SKILLS:
+        sk = SKILLS[skill]
+        # deterministic pre-fetch
+        for tname in sk["plan"]:
+            args = {k: params.get(k) for k in ("home", "away", "group") if params.get(k)}
+            yield json.dumps({"type": "tool", "name": tname,
+                              "label_vi": TOOL_LABELS[tname][0],
+                              "label_en": TOOL_LABELS[tname][1]}) + "\n"
+            res = await _exec_tool(tname, args)
+            pre_tools_results.append({"tool": tname, "result": res})
+        if skill == "value_hunt":
+            yield json.dumps({"type": "tool", "name": "get_market_odds",
+                              "label_vi": "Quét bảng kèo hôm nay",
+                              "label_en": "Scanning today's odds board"}) + "\n"
+            board = await service.odds_board(limit=8)
+            pre_tools_results.append({"tool": "odds_board", "result": {
+                "matches": [{"home": r["home"]["tla"], "away": r["away"]["tla"],
+                             "market": (r.get("market") or {}).get("h2h"),
+                             "fair": r["fair"]["h2h"], "value": r.get("value")}
+                            for r in board["matches"]]}})
+        prompt = (sk["prompt_vi"] if lang == "vi" else sk["prompt_en"]).format(
+            home=params.get("home", "?"), away=params.get("away", "?"),
+            group=params.get("group", "?"))
+        user_text = prompt + "\n\nDATA:\n" + json.dumps(pre_tools_results)[:14000]
+        contents.append({"role": "user", "parts": [{"text": user_text}]})
+        tools = None     # skill mode: single grounded generation, no extra calls
+    else:
+        contents.append({"role": "user", "parts": [{"text": (message or "")[:600]}]})
+        tools = [{"function_declarations": TOOL_DECLS}]
+
+    full_text = []
+    # Holdback emitter: never let the trailing "FOLLOWUPS: ..." line reach the
+    # user; keep a small lookahead buffer so the marker can't slip through
+    # split across chunks.
+    emit_state = {"acc": "", "sent": 0, "stopped": False}
+    HOLD = 12
+
+    def _emit_deltas(new_text: str) -> list[str]:
+        if emit_state["stopped"]:
+            return []
+        emit_state["acc"] += new_text
+        acc = emit_state["acc"]
+        cut = acc.find("FOLLOWUPS:")
+        if cut != -1:
+            emit_state["stopped"] = True
+            out = acc[emit_state["sent"]:cut].rstrip()
+            emit_state["sent"] = cut
+            return [out] if out else []
+        safe = max(emit_state["sent"], len(acc) - HOLD)
+        out = acc[emit_state["sent"]:safe]
+        emit_state["sent"] = safe
+        return [out] if out else []
+
+    def _flush_deltas() -> list[str]:
+        if emit_state["stopped"]:
+            return []
+        acc = emit_state["acc"]
+        out = acc[emit_state["sent"]:]
+        emit_state["sent"] = len(acc)
+        return [out] if out else []
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        for round_i in range(MAX_TOOL_ROUNDS + 1):
+            body = {
+                "system_instruction": {"parts": [{"text": _system(lang)}]},
+                "contents": contents,
+                "generationConfig": {
+                    "maxOutputTokens": settings.chat_max_output_tokens,
+                    "temperature": 0.6,
+                    "thinkingConfig": {"thinkingBudget": 0},
+                },
+            }
+            if tools and round_i < MAX_TOOL_ROUNDS:
+                body["tools"] = tools
+
+            fn_calls, model_parts = [], []
+            try:
+                async with client.stream(
+                    "POST",
+                    f"{GEMINI}/{settings.chat_model}:streamGenerateContent",
+                    params={"alt": "sse"},
+                    headers={"x-goog-api-key": settings.gemini_api_key},
+                    json=body,
+                ) as resp:
+                    if resp.status_code != 200:
+                        detail = (await resp.aread())[:200].decode(errors="ignore")
+                        log.warning("gemini %s: %s", resp.status_code, detail)
+                        yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.startswith("data:"):
+                            continue
+                        try:
+                            chunk = json.loads(line[5:].strip())
+                        except json.JSONDecodeError:
+                            continue
+                        for part in (chunk.get("candidates", [{}])[0]
+                                     .get("content", {}).get("parts", [])):
+                            model_parts.append(part)
+                            if "functionCall" in part:
+                                fn_calls.append(part["functionCall"])
+                            elif part.get("text"):
+                                full_text.append(part["text"])
+                                for piece in _emit_deltas(part["text"]):
+                                    yield json.dumps({"type": "delta",
+                                                      "text": piece}) + "\n"
+            except httpx.HTTPError as e:
+                log.warning("gemini stream error: %s", e)
+                yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
+                return
+
+            if not fn_calls:
+                break
+            # execute tool calls, append to conversation, loop
+            contents.append({"role": "model", "parts": model_parts})
+            responses = []
+            for fc in fn_calls:
+                name, args = fc.get("name", ""), fc.get("args") or {}
+                lbl = TOOL_LABELS.get(name, (name, name))
+                yield json.dumps({"type": "tool", "name": name,
+                                  "label_vi": lbl[0], "label_en": lbl[1],
+                                  "args": args}) + "\n"
+                result = await _exec_tool(name, args)
+                raw = json.dumps(result, ensure_ascii=False)
+                if len(raw) > 8000:      # keep tool payloads lean for token cost
+                    result = {"truncated": True, "data_preview": raw[:8000]}
+                responses.append({"functionResponse": {
+                    "name": name, "response": {"result": result}}})
+            contents.append({"role": "user", "parts": responses})
+
+    # ----- flush + followups parse -----
+    for piece in _flush_deltas():
+        yield json.dumps({"type": "delta", "text": piece}) + "\n"
+    text = "".join(full_text)
+    followups = []
+    if "FOLLOWUPS:" in text:
+        tail = text.rsplit("FOLLOWUPS:", 1)[1]
+        followups = [q.strip() for q in tail.split("|") if q.strip()][:3]
+    yield json.dumps({"type": "done", "remaining": remaining,
+                      "followups": followups}) + "\n"
