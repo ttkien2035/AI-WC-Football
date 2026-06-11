@@ -29,6 +29,14 @@ export default function Odds() {
       {data.quota && (
         <p className="text-xs text-slate-400">{t("odds.quota", { n: data.quota.remaining })}</p>
       )}
+      <details className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm dark:border-sky-900 dark:bg-sky-950/40">
+        <summary className="cursor-pointer font-semibold text-sky-700 dark:text-sky-300">
+          {t("odds.legend_title")}
+        </summary>
+        <div className="mt-2 whitespace-pre-line text-xs leading-5 text-slate-600 dark:text-slate-300">
+          {t("odds.legend")}
+        </div>
+      </details>
       {data.matches.map((r) => (
         <Card key={r.match_id}>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -52,37 +60,56 @@ export default function Odds() {
                 </tr>
               </thead>
               <tbody>
-                {r.market?.h2h && (
-                  <tr className="border-t border-slate-100 dark:border-slate-800">
-                    <td className="py-1.5 pr-2 font-medium">{t("odds.market")}</td>
-                    <td className={r.value?.home ? "font-bold text-emerald-500" : ""}>{fmt(r.market.h2h.home)}</td>
-                    <td className={r.value?.draw ? "font-bold text-emerald-500" : ""}>{fmt(r.market.h2h.draw)}</td>
-                    <td className={r.value?.away ? "font-bold text-emerald-500" : ""}>{fmt(r.market.h2h.away)}</td>
-                    <td>
-                      {r.market.totals
-                        ? `${r.market.totals.point}: ${fmt(r.market.totals.over)}/${fmt(r.market.totals.under)}`
-                        : "–"}
+                {r.market?.h2h && (() => {
+                  const mh = r.market!.h2h!;
+                  const vals = [mh.home, mh.draw, mh.away].filter((x): x is number => x != null);
+                  const fav = vals.length ? Math.min(...vals) : null;
+                  const cell = (v: number | null | undefined, valKey: string) => (
+                    <td className={
+                      r.value?.[valKey] ? "font-bold text-emerald-500"
+                        : v != null && v === fav ? "font-bold text-sky-500" : ""}>
+                      {fmt(v)}{v != null && v === fav && (
+                        <span className="ml-1 rounded bg-sky-100 px-1 text-[9px] text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                          {t("odds.fav")}
+                        </span>
+                      )}
                     </td>
-                    <td>
-                      {r.market.spreads
-                        ? `${r.market.spreads.point > 0 ? "+" : ""}${r.market.spreads.point}: ${fmt(r.market.spreads.home)}/${fmt(r.market.spreads.away)}`
-                        : "–"}
-                    </td>
-                    <td>
-                      {r.market.corners_totals?.length
-                        ? r.market.corners_totals.slice(0, 2).map((c) =>
-                            `${c.point}: ${fmt(c.over)}/${fmt(c.under)}`).join("  ")
-                        : "–"}
-                    </td>
-                  </tr>
-                )}
+                  );
+                  return (
+                    <tr className="border-t border-slate-100 dark:border-slate-800">
+                      <td className="py-1.5 pr-2 font-medium">{t("odds.market")}</td>
+                      {cell(mh.home, "home")}{cell(mh.draw, "draw")}{cell(mh.away, "away")}
+                      <td>
+                        {r.market!.totals
+                          ? `${r.market!.totals.point} → O ${fmt(r.market!.totals.over)} / U ${fmt(r.market!.totals.under)}`
+                          : "–"}
+                      </td>
+                      <td>
+                        {r.market!.spreads
+                          ? `${r.home.tla} ${r.market!.spreads.point > 0 ? "+" : ""}${r.market!.spreads.point} → ${fmt(r.market!.spreads.home)}/${fmt(r.market!.spreads.away)}`
+                          : "–"}
+                      </td>
+                      <td>
+                        {r.market!.corners_totals?.length
+                          ? r.market!.corners_totals.slice(0, 2).map((c) =>
+                              `${c.point}: ${fmt(c.over)}/${fmt(c.under)}`).join("  ")
+                          : "–"}
+                      </td>
+                    </tr>
+                  );
+                })()}
                 <tr className="border-t border-slate-100 dark:border-slate-800">
                   <td className="py-1.5 pr-2 font-medium text-sky-600 dark:text-sky-400">
                     {t("odds.model")}
                   </td>
-                  <td>{fmt(r.fair.h2h.home)}</td>
-                  <td>{fmt(r.fair.h2h.draw)}</td>
-                  <td>{fmt(r.fair.h2h.away)}</td>
+                  {(["home", "draw", "away"] as const).map((k) => (
+                    <td key={k}>
+                      {fmt(r.fair.h2h[k])}
+                      <span className="ml-1 text-[10px] text-slate-400">
+                        {(r.fair.probs[k] * 100).toFixed(0)}%
+                      </span>
+                    </td>
+                  ))}
                   <td>O {fmt(r.fair.over25)} / U {fmt(r.fair.under25)}</td>
                   <td className="text-slate-400">—</td>
                   <td>~{r.fair.expected_corners.toFixed(1)} · O9.5 {fmt(r.fair.corners_over_95)}</td>

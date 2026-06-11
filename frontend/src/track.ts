@@ -1,18 +1,10 @@
 /** Anonymous usage tracking — random UUID in localStorage, no PII.
  *  Fire-and-forget: failures are silently ignored. */
-
-function visitorId(): string {
-  let v = localStorage.getItem("visitor_id");
-  if (!v) {
-    v = crypto.randomUUID();
-    localStorage.setItem("visitor_id", v);
-  }
-  return v;
-}
+import { getVisitorId } from "./visitor";
 
 export function track(t: string, d?: Record<string, string>) {
   try {
-    const body = JSON.stringify({ v: visitorId(), t, d });
+    const body = JSON.stringify({ v: getVisitorId(), t, d });
     if (navigator.sendBeacon) {
       navigator.sendBeacon("/api/track", new Blob([body], { type: "application/json" }));
     } else {

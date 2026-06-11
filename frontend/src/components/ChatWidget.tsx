@@ -3,18 +3,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Send, Sparkles, X, Zap } from "lucide-react";
 import { api } from "../api";
 import { useLang, useT } from "../i18n";
+import { getVisitorId } from "../visitor";
 
 type ToolStep = { name: string; label: string; done: boolean };
 type Msg = { role: "user" | "bot"; text: string; tools: ToolStep[] };
-
-function visitorId(): string {
-  let v = localStorage.getItem("visitor_id");
-  if (!v) {
-    v = crypto.randomUUID();
-    localStorage.setItem("visitor_id", v);
-  }
-  return v;
-}
 
 /** markdown-lite: **bold**, bullet lines, newlines */
 function Md({ text }: { text: string }) {
@@ -53,7 +45,7 @@ export default function ChatWidget() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`/api/chat/quota?v=${visitorId()}`)
+    fetch(`/api/chat/quota?v=${getVisitorId()}`)
       .then((r) => r.json())
       .then((d) => { setRemaining(d.remaining); setLiveNow(d.live_now); setEnabled(d.enabled); })
       .catch(() => {});
@@ -79,7 +71,7 @@ export default function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ v: visitorId(), message: text, history, lang }),
+        body: JSON.stringify({ v: getVisitorId(), message: text, history, lang }),
       });
       if (!res.ok || !res.body) throw new Error(String(res.status));
       const reader = res.body.getReader();

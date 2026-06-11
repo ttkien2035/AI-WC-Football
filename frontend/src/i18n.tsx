@@ -110,6 +110,12 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "odds.corners": { vi: "Phạt góc", en: "Corners" },
   "odds.value": { vi: "Value: {v} (model đánh giá xác suất cao hơn thị trường)", en: "Value: {v} (model rates probability above market)" },
   "odds.footer": { vi: "Fair odds = 1 / xác suất model (ML ensemble {ml}). Tham khảo thống kê — không phải khuyến nghị cá cược.", en: "Fair odds = 1 / model probability (ML ensemble {ml}). Statistical reference — not betting advice." },
+  "odds.legend_title": { vi: "📖 Cách đọc bảng kèo", en: "📖 How to read this board" },
+  "odds.legend": {
+    vi: "• 1 / X / 2 = đội NHÀ thắng / HÒA / đội KHÁCH thắng. Số là tỉ lệ ăn kiểu decimal: cược 100k ở kèo 1.42 → nhận 142k nếu trúng. Số càng THẤP = khả năng càng cao (kèo trên, in đậm xanh).\n• Tài/Xỉu 2.5: Tài (O) = tổng bàn ≥3, Xỉu (U) = ≤2.\n• Chấp (AH): chấp bàn kiểu châu Á — \"MEX -1.5\" nghĩa là Mexico chấp 1.5 bàn (phải thắng cách biệt 2 bàn mới ăn kèo).\n• Thị trường = giá trung bình các nhà cái (đã gồm lãi nhà cái). Model (fair) = giá \"công bằng\" tính từ xác suất AI (kèm % xác suất), không có lãi.\n• ⚡ Value = model tin xác suất CAO hơn giá thị trường ngụ ý — chênh càng lớn kèo càng \"hời\" theo model.",
+    en: "• 1 / X / 2 = HOME win / DRAW / AWAY win. Decimal odds: stake 100 at 1.42 returns 142 if it wins. LOWER = more likely (the favourite, bold green).\n• O/U 2.5: Over = 3+ total goals, Under = ≤2.\n• AH: Asian handicap — \"MEX -1.5\" means Mexico gives 1.5 goals (must win by 2+).\n• Market = average bookmaker price (includes their margin). Model (fair) = the AI's no-margin price, shown with its probability %.\n• ⚡ Value = the model rates a probability HIGHER than the market price implies.",
+  },
+  "odds.fav": { vi: "kèo trên", en: "favourite" },
 
   // Accuracy
   "acc.heading": { vi: "Độ chính xác của model", en: "Model accuracy" },
