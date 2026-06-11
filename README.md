@@ -59,8 +59,14 @@ Final pre-match blend: market odds (de-vigged) 40% / ML ensemble 40% / Poisson 1
 - 7-tab React UI: Live · Groups · Bracket · Match Sim · Title Odds · Odds · Accuracy
 - English / Vietnamese language toggle, dark/light mode, today's matches ticker
 
+### 🤖 Football AI Analysis chatbot (Gemini-powered)
+- Floating chat — ask anything about the tournament in **English or Vietnamese** ("Vì sao Tây Ban Nha được đánh giá cao?")
+- **Agentic**: 9 function-calling tools over the app's own engines — predictions, title odds, H2H, market-vs-fair odds, live state, Google-grounded news, and a **what-if simulator** (re-runs 20k tournament sims for hypothetical results)
+- Visible agent steps, streaming answers, contextual suggestion chips, followups
+- Every number comes from real model output — never invented; off-topic politely refused
+- Cost-guarded: 5 questions/day/visitor + global daily cap
+
 ## 🚧 Coming soon
-- 🤖 **AI chatbot match analyst** — ask questions about any fixture ("Why is Spain favored?", "How does Mexico's missing striker change the odds?") and get model-grounded analysis
 - Penalty-shootout simulator with kicker-level detail
 - Public read-only API & embeddable widgets
 
