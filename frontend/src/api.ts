@@ -106,6 +106,17 @@ export type Prediction = {
     advance: { home: number; away: number };
     win_via: Record<string, Record<string, number>>;
   };
+  simulation?: {
+    probs: { home: number; draw: number; away: number };
+    scorelines: ScoreP[];
+    exp_goals: { home: number; away: number };
+    scenarios: {
+      late_goal_80plus: number; home_blew_lead: number; home_comeback: number;
+      clean_sheet_home: number; clean_sheet_away: number;
+    };
+    from: { minute: number; score: { home: number; away: number } };
+    runs: number;
+  };
 };
 
 export type ScoreP = { home: number; away: number; p: number };

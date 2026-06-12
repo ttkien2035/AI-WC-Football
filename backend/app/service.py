@@ -10,7 +10,7 @@ from .clients import elo as elo_client
 from .clients import livescore
 from .clients import odds as odds_client
 from .config import settings
-from .engine import match_model, ml_ensemble, periods, tournament
+from .engine import match_model, match_sim, ml_ensemble, periods, tournament
 from .static_data import TEAMS
 
 LIVE_STATUSES = ("IN_PLAY", "PAUSED", "LIVE")
@@ -439,6 +439,21 @@ async def predict(home: str, away: str, minute: int | None = None,
     pred["stage"] = stage
     pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
     pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
+
+    # ---- Dixon-Robinson minute-by-minute scenario simulation ----
+    # (validated equal to the matrix on W/D/L RPS, so headline stays from the
+    # blend above; the sim adds the scenario timeline the matrix can't give)
+    if minute is None:
+        sim = match_sim.simulate(lam_h, lam_a, n=settings.sim_runs,
+                                  lam_cv=settings.sim_lambda_cv)
+    else:
+        sim = match_sim.simulate(lam_h, lam_a, n=settings.sim_runs,
+                                  start_min=minute, score=(hg, ag), reds=red_cards)
+    pred["simulation"] = {
+        "probs": sim["probs"], "scorelines": sim["scorelines"],
+        "exp_goals": sim["exp_goals"], "scenarios": sim["scenarios"],
+        "from": sim["from"], "runs": sim["n"],
+    }
 
     # ---- Asian-line O/U: model % at the MARKET's actual lines ------------
     goals_line, goals_prices, corners_line, corners_prices = 2.5, None, 9.5, None

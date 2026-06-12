@@ -288,6 +288,7 @@ async def _exec_tool(name: str, args: dict) -> dict:
                                  ("p_extra_time", "p_penalties", "advance")} if p.get("knockout") else None,
                     "key_absences": p.get("absence_penalty"),
                     "context": p["components"].get("context"),
+                    "scenarios": (p.get("simulation") or {}).get("scenarios"),
                     "elo": p["elo"]}
         if name == "get_team_overview":
             t = resolve_team(args.get("team", ""))

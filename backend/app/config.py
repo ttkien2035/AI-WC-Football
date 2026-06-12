@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
     context_ko_lockdown_factor: float = 0.90
 
+    # Dixon-Robinson minute simulator (engine/match_sim.py)
+    sim_state_effect: float = 0.12   # leading team eases / trailing pushes
+    sim_lambda_cv: float = 0.18      # pre-match parameter uncertainty (Gamma CV)
+    sim_runs: int = 20000
+
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
     corners_base: float = 9.67       # fitted: 9k club matches (validated vs intl avg)

@@ -211,6 +211,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
       {pred.halves && <HalvesPanel pred={pred} />}
       {pred.corners && <CornersPanel pred={pred} />}
       {pred.knockout && <KnockoutPanel pred={pred} />}
+      {pred.simulation && <SimPanel pred={pred} />}
       {h2h && <H2hPanel pred={pred} h2h={h2h} />}
 
       <h3 className="mb-1 text-sm font-semibold">{t("match.components")}</h3>
@@ -462,6 +463,33 @@ function AnalysisPanel({ ana }: { ana: Analysis }) {
         })}
       </div>
       <p className="mt-1 text-[10px] text-slate-400">{t("ana.style_note")}</p>
+    </div>
+  );
+}
+
+function SimPanel({ pred }: { pred: Prediction }) {
+  const t = useT();
+  const s = pred.simulation!;
+  const sc = s.scenarios;
+  const items: [string, number][] = [
+    [t("match.sim_late"), sc.late_goal_80plus],
+    [t("match.sim_cs_h", { team: pred.home }), sc.clean_sheet_home],
+    [t("match.sim_cs_a", { team: pred.away }), sc.clean_sheet_away],
+    [t("match.sim_comeback", { team: pred.home }), sc.home_comeback],
+    [t("match.sim_blew", { team: pred.home }), sc.home_blew_lead],
+  ];
+  return (
+    <div className="mb-4">
+      <h3 className="mb-1 text-sm font-semibold">🎲 {t("match.sim", { n: s.runs.toLocaleString() })}</h3>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        {items.map(([label, p], i) => (
+          <div key={i} className="rounded-lg bg-slate-100/80 p-2 text-center dark:bg-white/[0.07]">
+            <p className="text-base font-bold tabular-nums">{pct(p)}</p>
+            <p className="text-[10px] leading-tight text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1 text-[10px] text-slate-400">{t("match.sim_note")}</p>
     </div>
   );
 }
