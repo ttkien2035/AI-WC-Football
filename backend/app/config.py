@@ -120,6 +120,11 @@ class Settings(BaseSettings):
     pot_prior_enabled: bool = True
     pot_prior_w0: float = 0.15   # max shrink weight (team yet to play)
     pot_prior_k: float = 2.0     # decay: w = w0*k/(k+played)
+    # Squad-strength refinement of the prior target (ml/squad_strength.py:
+    # Wikipedia squads x ClubElo). Offset = clamp(sigma*z, ±cap) * coverage.
+    squad_prior_enabled: bool = True
+    squad_prior_sigma: float = 40.0  # Elo per squad-index z-unit
+    squad_prior_cap: float = 70.0    # max |offset| on the tier baseline
 
     # Venue-conditions O/U factor (WC-2026 altitude + heat)
     venue_adjust_enabled: bool = True

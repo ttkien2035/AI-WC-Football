@@ -1,0 +1,528 @@
+{
+ "ALG": {
+  "index": 1642.6,
+  "coverage": 0.65,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C.",
+   "Borussia Dortmund",
+   "Bayer 04 Leverkusen"
+  ],
+  "z": -0.31
+ },
+ "ARG": {
+  "index": 1820.7,
+  "coverage": 0.92,
+  "n": 26,
+  "top_clubs": [
+   "Aston Villa F.C.",
+   "Manchester United F.C.",
+   "Liverpool F.C."
+  ],
+  "z": 1.13
+ },
+ "AUS": {
+  "index": 1503.4,
+  "coverage": 0.58,
+  "n": 26,
+  "top_clubs": [
+   "Levante UD",
+   "US Sassuolo Calcio",
+   "Feyenoord"
+  ],
+  "z": -1.44
+ },
+ "AUT": {
+  "index": 1658.0,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Real Madrid CF",
+   "Borussia Dortmund"
+  ],
+  "z": -0.19
+ },
+ "BEL": {
+  "index": 1792.6,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Manchester City F.C.",
+   "Real Madrid CF"
+  ],
+  "z": 0.9
+ },
+ "BIH": {
+  "index": 1512.0,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "S.L. Benfica",
+   "VfB Stuttgart",
+   "Atalanta BC"
+  ],
+  "z": -1.37
+ },
+ "BRA": {
+  "index": 1852.6,
+  "coverage": 0.65,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Paris Saint-Germain FC",
+   "FC Barcelona"
+  ],
+  "z": 1.39
+ },
+ "CAN": {
+  "index": 1630.6,
+  "coverage": 0.62,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Inter Miami CF",
+   "Juventus FC"
+  ],
+  "z": -0.41
+ },
+ "CIV": {
+  "index": 1673.3,
+  "coverage": 0.92,
+  "n": 26,
+  "top_clubs": [
+   "Manchester United F.C.",
+   "Inter Milan",
+   "Sporting CP"
+  ],
+  "z": -0.06
+ },
+ "COD": {
+  "index": 1571.3,
+  "coverage": 0.81,
+  "n": 26,
+  "top_clubs": [
+   "Newcastle United F.C.",
+   "West Ham United F.C.",
+   "RC Lens"
+  ],
+  "z": -0.89
+ },
+ "COL": {
+  "index": 1752.5,
+  "coverage": 0.69,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Sporting CP",
+   "Atl\u00e9tico Nacional"
+  ],
+  "z": 0.58
+ },
+ "CPV": {
+  "index": 1512.4,
+  "coverage": 0.38,
+  "n": 26,
+  "top_clubs": [
+   "S.L. Benfica",
+   "Villarreal CF",
+   "FC Krasnodar"
+  ],
+  "z": -1.36
+ },
+ "CRO": {
+  "index": 1702.2,
+  "coverage": 0.92,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Manchester City F.C.",
+   "Inter Milan"
+  ],
+  "z": 0.17
+ },
+ "CUW": {
+  "index": 1443.6,
+  "coverage": 0.5,
+  "n": 26,
+  "top_clubs": [
+   "PSV Eindhoven",
+   "Middlesbrough F.C.",
+   "Sheffield United F.C."
+  ],
+  "z": -1.92
+ },
+ "CZE": {
+  "index": 1647.8,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "Bayer 04 Leverkusen",
+   "West Ham United F.C.",
+   "PSV Eindhoven"
+  ],
+  "z": -0.27
+ },
+ "ECU": {
+  "index": 1781.8,
+  "coverage": 0.69,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Paris Saint-Germain FC",
+   "SC Internacional"
+  ],
+  "z": 0.82
+ },
+ "EGY": {
+  "index": 1794.7,
+  "coverage": 0.19,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C.",
+   "FC Barcelona Atl\u00e8tic",
+   "Liverpool F.C."
+  ],
+  "z": null
+ },
+ "ENG": {
+  "index": 1915.3,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "FC Bayern Munich",
+   "Manchester City F.C."
+  ],
+  "z": 1.9
+ },
+ "ESP": {
+  "index": 1865.2,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Manchester City F.C.",
+   "Paris Saint-Germain FC"
+  ],
+  "z": 1.49
+ },
+ "FRA": {
+  "index": 1879.3,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "FC Bayern Munich",
+   "Manchester City F.C."
+  ],
+  "z": 1.61
+ },
+ "GER": {
+  "index": 1848.4,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "FC Bayern Munich",
+   "Real Madrid CF"
+  ],
+  "z": 1.36
+ },
+ "GHA": {
+  "index": 1620.4,
+  "coverage": 0.81,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C.",
+   "Atalanta BC",
+   "Villarreal CF"
+  ],
+  "z": -0.49
+ },
+ "HAI": {
+  "index": 1505.7,
+  "coverage": 0.42,
+  "n": 26,
+  "top_clubs": [
+   "Sunderland A.F.C.",
+   "Wolverhampton Wanderers F.C.",
+   "AJ Auxerre"
+  ],
+  "z": -1.42
+ },
+ "IRN": {
+  "index": 1423.6,
+  "coverage": 0.12,
+  "n": 26,
+  "top_clubs": [
+   "Standard Li\u00e8ge",
+   "FC Rostov",
+   "FCV Dender EH"
+  ],
+  "z": null
+ },
+ "IRQ": {
+  "index": 1496.9,
+  "coverage": 0.31,
+  "n": 26,
+  "top_clubs": [
+   "Venezia FC",
+   "Aarhus Gymnastikforening",
+   "FC Viktoria Plze\u0148"
+  ],
+  "z": -1.49
+ },
+ "JOR": {
+  "index": 1716.1,
+  "coverage": 0.04,
+  "n": 26,
+  "top_clubs": [
+   "Stade Rennais FC"
+  ],
+  "z": null
+ },
+ "JPN": {
+  "index": 1644.2,
+  "coverage": 0.81,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Crystal Palace F.C.",
+   "Leeds United F.C."
+  ],
+  "z": -0.3
+ },
+ "KOR": {
+  "index": 1624.4,
+  "coverage": 0.58,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Paris Saint-Germain FC",
+   "FC Midtjylland"
+  ],
+  "z": -0.46
+ },
+ "KSA": {
+  "index": 1767.0,
+  "coverage": 0.04,
+  "n": 26,
+  "top_clubs": [
+   "RC Lens"
+  ],
+  "z": null
+ },
+ "MAR": {
+  "index": 1739.7,
+  "coverage": 0.73,
+  "n": 26,
+  "top_clubs": [
+   "Paris Saint-Germain FC",
+   "Real Madrid CF",
+   "Manchester United F.C."
+  ],
+  "z": 0.48
+ },
+ "MEX": {
+  "index": 1692.6,
+  "coverage": 0.31,
+  "n": 26,
+  "top_clubs": [
+   "Atl\u00e9tico Madrid",
+   "Fulham F.C.",
+   "AC Milan"
+  ],
+  "z": 0.09
+ },
+ "NED": {
+  "index": 1814.7,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C.",
+   "FC Barcelona",
+   "Liverpool F.C."
+  ],
+  "z": 1.08
+ },
+ "NOR": {
+  "index": 1717.3,
+  "coverage": 1.0,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Manchester City F.C.",
+   "Brentford F.C."
+  ],
+  "z": 0.29
+ },
+ "NZL": {
+  "index": 1552.9,
+  "coverage": 0.46,
+  "n": 26,
+  "top_clubs": [
+   "Newcastle Jets FC",
+   "Nottingham Forest F.C.",
+   "Viking FK"
+  ],
+  "z": -1.04
+ },
+ "PAN": {
+  "index": 1452.5,
+  "coverage": 0.38,
+  "n": 26,
+  "top_clubs": [
+   "Norwich City F.C.",
+   "Deportivo Saprissa",
+   "Deportivo La Guaira F.C."
+  ],
+  "z": -1.85
+ },
+ "PAR": {
+  "index": 1697.7,
+  "coverage": 0.38,
+  "n": 26,
+  "top_clubs": [
+   "Brighton & Hove Albion F.C.",
+   "Clube Atl\u00e9tico Mineiro",
+   "Club Atl\u00e9tico Lan\u00fas"
+  ],
+  "z": 0.14
+ },
+ "POR": {
+  "index": 1847.8,
+  "coverage": 0.88,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C.",
+   "Paris Saint-Germain FC",
+   "FC Barcelona"
+  ],
+  "z": 1.35
+ },
+ "QAT": {
+  "index": 1546.3,
+  "coverage": 0.04,
+  "n": 26,
+  "top_clubs": [
+   "Cultural y Deportiva Leonesa"
+  ],
+  "z": null
+ },
+ "RSA": {
+  "index": 1515.3,
+  "coverage": 0.15,
+  "n": 26,
+  "top_clubs": [
+   "Burnley F.C.",
+   "Hannover 96",
+   "Molde FK"
+  ],
+  "z": null
+ },
+ "SCO": {
+  "index": 1651.2,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Aston Villa F.C.",
+   "Manchester United F.C.",
+   "Liverpool F.C."
+  ],
+  "z": -0.24
+ },
+ "SEN": {
+  "index": 1728.9,
+  "coverage": 0.88,
+  "n": 26,
+  "top_clubs": [
+   "FC Bayern Munich",
+   "Paris Saint-Germain FC",
+   "Chelsea F.C."
+  ],
+  "z": 0.39
+ },
+ "SUI": {
+  "index": 1679.5,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Inter Milan",
+   "Borussia Dortmund",
+   "Nottingham Forest F.C."
+  ],
+  "z": -0.01
+ },
+ "SWE": {
+  "index": 1683.5,
+  "coverage": 0.88,
+  "n": 26,
+  "top_clubs": [
+   "Arsenal F.C.",
+   "Aston Villa F.C.",
+   "Liverpool F.C."
+  ],
+  "z": 0.02
+ },
+ "TUN": {
+  "index": 1542.0,
+  "coverage": 0.69,
+  "n": 26,
+  "top_clubs": [
+   "Paris Saint-Germain FC",
+   "Burnley F.C.",
+   "Eintracht Frankfurt"
+  ],
+  "z": -1.13
+ },
+ "TUR": {
+  "index": 1699.2,
+  "coverage": 0.96,
+  "n": 26,
+  "top_clubs": [
+   "Real Madrid CF",
+   "Manchester United F.C.",
+   "Inter Milan"
+  ],
+  "z": 0.15
+ },
+ "URY": {
+  "index": 1786.3,
+  "coverage": 0.5,
+  "n": 26,
+  "top_clubs": [
+   "FC Barcelona",
+   "Real Madrid CF",
+   "Manchester United F.C."
+  ],
+  "z": 0.85
+ },
+ "USA": {
+  "index": 1735.1,
+  "coverage": 0.65,
+  "n": 26,
+  "top_clubs": [
+   "AFC Bournemouth",
+   "Fulham F.C.",
+   "Bayer 04 Leverkusen"
+  ],
+  "z": 0.44
+ },
+ "UZB": {
+  "index": 1970.9,
+  "coverage": 0.04,
+  "n": 26,
+  "top_clubs": [
+   "Manchester City F.C."
+  ],
+  "z": null
+ },
+ "_meta": {
+  "computed_at": "2026-06-12T16:46:32.844872+00:00",
+  "source": "Wikipedia squads + clubelo.com",
+  "mu": 1680.9,
+  "sd": 123.5
+ }
+}
