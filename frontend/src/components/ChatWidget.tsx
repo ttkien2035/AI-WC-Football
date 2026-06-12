@@ -35,13 +35,19 @@ export default function ChatWidget() {
   const t = useT();
   const { lang } = useLang();
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>([]);
+  const [msgs, setMsgs] = useState<Msg[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem("chat_msgs") || "[]"); }
+    catch { return []; }
+  });
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [limit, setLimit] = useState(10);
   const [liveNow, setLiveNow] = useState(false);
-  const [followups, setFollowups] = useState<string[]>([]);
+  const [followups, setFollowups] = useState<string[]>(() => {
+    try { return JSON.parse(sessionStorage.getItem("chat_followups") || "[]"); }
+    catch { return []; }
+  });
   const [todayMatch, setTodayMatch] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(true);
   const [teaser, setTeaser] = useState(false);
@@ -77,10 +83,20 @@ export default function ChatWidget() {
     scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" });
   }, [msgs, streaming]);
 
+  // survive page reloads (mobile browsers unload aggressively)
+  useEffect(() => {
+    try {
+      if (!streaming) {
+        sessionStorage.setItem("chat_msgs", JSON.stringify(msgs.slice(-20)));
+        sessionStorage.setItem("chat_followups", JSON.stringify(followups));
+      }
+    } catch { /* ignore */ }
+  }, [msgs, followups, streaming]);
+
   const send = async (text: string) => {
     if (!text.trim() || streaming || (remaining ?? 0) <= 0) return;
     setFollowups([]);
-    const history = msgs.slice(-6).map((m) => ({ role: m.role, text: m.text }));
+    const history = msgs.slice(-8).map((m) => ({ role: m.role, text: m.text }));
     setMsgs((p) => [...p, { role: "user", text, tools: [] },
                           { role: "bot", text: "", tools: [] }]);
     setInput("");

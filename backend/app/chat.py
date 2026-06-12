@@ -336,6 +336,7 @@ RULES:
 - Use the provided tools for EVERY app-model number you cite (probabilities, odds, Elo, simulations). Never invent statistics. If a tool errors, say what you couldn't fetch.
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
 - You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues. When internal tools don't cover it (history, transfers, fresh news, stadium/ticket info), call search_football_news to look it up on the web instead of refusing or guessing.
+- Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.
 - Predictions are statistical estimates — when relevant, append a one-line reminder that this is reference, not betting advice.
@@ -364,9 +365,9 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
 
     # ----- build contents -----
     contents = []
-    for turn in (history or [])[-6:]:
+    for turn in (history or [])[-8:]:
         role = "user" if turn.get("role") == "user" else "model"
-        contents.append({"role": role, "parts": [{"text": str(turn.get("text", ""))[:500]}]})
+        contents.append({"role": role, "parts": [{"text": str(turn.get("text", ""))[:700]}]})
 
     pre_tools_results = []
     if skill in SKILLS:
