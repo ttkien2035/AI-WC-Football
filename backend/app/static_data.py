@@ -72,6 +72,37 @@ TEAMS = {
 
 ELO_CODE_TO_TLA = {v["elo_code"]: k for k, v in TEAMS.items()}
 
+# Official draw pots (FIFA Final Draw, Washington D.C., 2025-12-05).
+# Pot 1 = hosts + top-9 FIFA ranking; Pot 4 includes the 6 playoff winners
+# (TUR/SWE/IRQ/COD/CZE/BIH entered via the placeholder slots).
+# NOTE: every group contains exactly one team from each pot by draw design,
+# so pot composition can NOT differentiate group difficulty — use opponent
+# Elo for that (see group_difficulty()).
+POTS = {
+    1: ("USA", "MEX", "CAN", "ESP", "ARG", "FRA", "ENG", "BRA", "POR", "NED", "BEL", "GER"),
+    2: ("CRO", "MAR", "COL", "URY", "SUI", "JPN", "SEN", "IRN", "KOR", "ECU", "AUT", "AUS"),
+    3: ("NOR", "PAN", "EGY", "ALG", "SCO", "PAR", "TUN", "CIV", "UZB", "QAT", "KSA", "RSA"),
+    4: ("JOR", "CPV", "GHA", "CUW", "HAI", "NZL", "TUR", "SWE", "IRQ", "COD", "CZE", "BIH"),
+}
+for _pot, _tlas in POTS.items():
+    for _t in _tlas:
+        TEAMS[_t]["pot"] = _pot
+
+
+def pot_of(tla: str) -> int | None:
+    return TEAMS.get(tla, {}).get("pot")
+
+
+def group_difficulty(tla: str) -> float | None:
+    """Mean static-seed Elo of a team's three group opponents (display /
+    analysis metric; pots are degenerate across groups by draw design)."""
+    me = TEAMS.get(tla)
+    if not me:
+        return None
+    opps = [v["elo"] for k, v in TEAMS.items()
+            if v["group"] == me["group"] and k != tla]
+    return round(sum(opps) / len(opps), 0) if opps else None
+
 # Official R32 routing (FIFA / Wikipedia knockout-stage page).
 # "1A" = winner of group A, "2A" = runner-up, "3:ABCDF" = a best-third from those groups.
 R32 = {

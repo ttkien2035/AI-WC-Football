@@ -115,6 +115,12 @@ class Settings(BaseSettings):
     context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
     context_ko_lockdown_factor: float = 0.90
 
+    # Pot-tier strength prior (official draw pots -> bounded Elo shrink,
+    # decays as the team plays; mainly steadies thin-data teams)
+    pot_prior_enabled: bool = True
+    pot_prior_w0: float = 0.15   # max shrink weight (team yet to play)
+    pot_prior_k: float = 2.0     # decay: w = w0*k/(k+played)
+
     # Venue-conditions O/U factor (WC-2026 altitude + heat)
     venue_adjust_enabled: bool = True
     venue_alt_max: float = 0.07     # max altitude goal bump (Mexico City)

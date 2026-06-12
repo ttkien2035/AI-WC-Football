@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Radio } from "lucide-react";
 import { api, type Analysis, type EvalResult, type Match, type Prediction, type TeamRow, pct } from "../api";
-import { Card, Flag, ProbBar } from "../components/ui";
+import { Card, Flag, PotBadge, ProbBar } from "../components/ui";
 import { useLang, useT, outcomeLabel } from "../i18n";
 import { track } from "../track";
 
@@ -168,6 +168,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
       <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-base font-bold sm:gap-4 sm:text-lg">
         <span className="flex items-center gap-2">
           <Flag crest={h?.crest} tla={pred.home} size={28} /> {h?.name ?? pred.home}
+          {h?.pot && <PotBadge pot={h.pot} title={t("groups.pot", { n: h.pot })} />}
         </span>
         {pred.in_play && pred.score ? (
           <span className="rounded-lg bg-red-100 px-3 py-1 text-red-600 dark:bg-red-950 dark:text-red-300">
@@ -177,6 +178,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
           <span className="text-slate-400">vs</span>
         )}
         <span className="flex items-center gap-2">
+          {a?.pot && <PotBadge pot={a.pot} title={t("groups.pot", { n: a.pot })} />}
           {a?.name ?? pred.away} <Flag crest={a?.crest} tla={pred.away} size={28} />
         </span>
       </div>

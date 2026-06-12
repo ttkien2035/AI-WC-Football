@@ -38,6 +38,7 @@ async def get_teams() -> dict[str, dict]:
         meta = TEAMS.get(tla, {})
         t["elo"] = ratings.get(tla, meta.get("elo", 1700))
         t["fifa_rank"] = meta.get("fifa")
+        t["pot"] = meta.get("pot")
     return table
 
 
@@ -374,7 +375,13 @@ async def predict(home: str, away: str, minute: int | None = None,
     lu = (fixture or {}).get("lineups") or {}
     pen_h, kp_h = team_profiles.absence_penalty(home, (lu.get("home") or {}).get("players"))
     pen_a, kp_a = team_profiles.absence_penalty(away, (lu.get("away") or {}).get("players"))
-    elo_adjust = (-pen_h, -pen_a)
+    # pot-tier prior: bounded Elo shrink toward the official draw-pot baseline,
+    # fading as the team plays — one delta folded into BOTH the ML path
+    # (elo_adjust) and the heuristic path (elo_h/elo_a) for consistency.
+    from .engine import strength_prior
+    seed_d_h = strength_prior.pot_shrink_delta(home, teams[home]["elo"], teams[home]["played"])
+    seed_d_a = strength_prior.pot_shrink_delta(away, teams[away]["elo"], teams[away]["played"])
+    elo_adjust = (-pen_h + seed_d_h, -pen_a + seed_d_a)
     rc = (fixture or {}).get("red_cards") or {}
     red_cards = (rc.get("home", 0), rc.get("away", 0))
 
@@ -395,12 +402,13 @@ async def predict(home: str, away: str, minute: int | None = None,
     ctx = ctx_engine.match_context(
         home, away, stage, fixture.get("group") if fixture else None,
         teams, matches, sim_cache,
-        match_model.effective_elo(home, teams[home]["elo"]),
-        match_model.effective_elo(away, teams[away]["elo"]))
+        match_model.effective_elo(home, teams[home]["elo"] + seed_d_h),
+        match_model.effective_elo(away, teams[away]["elo"] + seed_d_a))
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
-        elo_h=teams[home]["elo"] - pen_h, elo_a=teams[away]["elo"] - pen_a,
+        elo_h=teams[home]["elo"] - pen_h + seed_d_h,
+        elo_a=teams[away]["elo"] - pen_a + seed_d_a,
         home_stats=teams[home], away_stats=teams[away],
         lg_avg_per_team=lg_avg,
         market=market,
@@ -447,6 +455,13 @@ async def predict(home: str, away: str, minute: int | None = None,
         "notes": ctx.get("notes", []) + ven.get("notes", []),
     }
     pred["components"]["venue"] = {"factor": ven["factor"], "venue": ven["venue"]}
+    from .static_data import pot_of, group_difficulty
+    pred["components"]["seed"] = {
+        "home_pot": pot_of(home), "away_pot": pot_of(away),
+        "prior_delta": {"home": seed_d_h, "away": seed_d_a},
+        "group_difficulty": {"home": group_difficulty(home),
+                             "away": group_difficulty(away)},
+    }
 
     # ---- period-level extensions ----
     lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]

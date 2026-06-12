@@ -50,3 +50,22 @@ export function Flag({ crest, tla, size = 20 }: { crest?: string | null; tla?: s
 export function StatusDot({ ok }: { ok: boolean }) {
   return <span className={`inline-block h-2 w-2 rounded-full ${ok ? "bg-emerald-500" : "bg-amber-500"}`} />;
 }
+
+// Official FIFA draw-pot (seeding tier) badge: P1 gold ... P4 slate.
+const POT_STYLE: Record<number, string> = {
+  1: "bg-amber-400/90 text-amber-950",
+  2: "bg-sky-400/80 text-sky-950",
+  3: "bg-emerald-400/70 text-emerald-950",
+  4: "bg-slate-300 text-slate-700 dark:bg-slate-600 dark:text-slate-200",
+};
+
+export function PotBadge({ pot, title }: { pot: number; title?: string }) {
+  return (
+    <span
+      title={title ?? `Pot ${pot}`}
+      className={`inline-flex items-center rounded px-1 py-px text-[9px] font-bold leading-tight ${POT_STYLE[pot] ?? POT_STYLE[4]}`}
+    >
+      P{pot}
+    </span>
+  );
+}

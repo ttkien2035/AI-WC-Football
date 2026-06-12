@@ -300,6 +300,7 @@ async def _exec_tool(name: str, args: dict) -> dict:
                     "key_absences": p.get("absence_penalty"),
                     "context": p["components"].get("context"),
                     "venue": p["components"].get("venue"),
+                    "seed": p["components"].get("seed"),   # draw pots + prior delta
                     "ou_lines": p.get("market_lines"),     # line + over% + pick + confidence
                     "scenarios": (p.get("simulation") or {}).get("scenarios"),
                     "elo": p["elo"]}
@@ -311,8 +312,11 @@ async def _exec_tool(name: str, args: dict) -> dict:
             sim = await service.latest_simulation() or {}
             from .team_profiles import PROFILES
             from .engine.style_adjust import MANAGER_NOTES
+            from .static_data import pot_of, group_difficulty
             return {"team": t, "manager_tactics": MANAGER_NOTES.get(t), **{k: teams[t][k] for k in
                     ("name", "group", "position", "played", "points", "gf", "ga", "elo", "fifa_rank")},
+                    "draw_pot": pot_of(t),       # official seeding tier 1(top)-4
+                    "group_difficulty_avg_opp_elo": group_difficulty(t),
                     "sim_odds": (sim.get("teams") or {}).get(t),
                     "profile": PROFILES.get(t)}
         if name == "get_title_odds":

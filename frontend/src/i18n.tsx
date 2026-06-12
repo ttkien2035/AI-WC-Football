@@ -25,6 +25,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "groups.team": { vi: "Đội", en: "Team" },
   "groups.adv": { vi: "Đi tiếp", en: "Adv %" },
   "groups.failed": { vi: "Không tải được vòng bảng: ", en: "Failed to load groups: " },
+  "groups.pot": { vi: "Hạt giống FIFA — Nhóm {n} (bốc thăm 5/12/2025)", en: "FIFA seeding — Pot {n} (draw Dec 5, 2025)" },
 
   // Bracket
   "bracket.note": {

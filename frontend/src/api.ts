@@ -2,7 +2,7 @@ export type TeamRow = {
   id: number; name: string; tla: string; crest: string | null; group: string;
   position: number; played: number; won: number; draw: number; lost: number;
   gf: number; ga: number; gd: number; points: number; form: string | null;
-  elo: number; fifa_rank: number | null;
+  elo: number; fifa_rank: number | null; pot: number | null;
   sim?: SimTeam | null;
 };
 

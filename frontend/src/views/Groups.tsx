@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type TeamRow, pct } from "../api";
-import { Card, Flag, ProbBar } from "../components/ui";
+import { Card, Flag, PotBadge, ProbBar } from "../components/ui";
 import { useT } from "../i18n";
 
 export default function Groups() {
@@ -50,6 +50,7 @@ export default function Groups() {
                         <span className="w-4 text-xs text-slate-400">{r.position}</span>
                         <Flag crest={r.crest} tla={r.tla} />
                         <span className="font-medium">{r.name}</span>
+                        {r.pot && <PotBadge pot={r.pot} title={t("groups.pot", { n: r.pot })} />}
                       </span>
                     </td>
                     <td className="text-center tabular-nums">{r.played}</td>
