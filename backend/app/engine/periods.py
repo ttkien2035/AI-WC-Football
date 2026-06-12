@@ -170,6 +170,19 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
     return res
 
 
+def corners_at_line(mu: float, line: float) -> dict:
+    """P(over/under/push) of total corners vs an Asian line under the fitted
+    negative-binomial distribution."""
+    k_under = math.ceil(line) - 1          # strictly under the line
+    under = _nb_cdf(mu, k_under) if k_under >= 0 else 0.0
+    if float(line).is_integer():
+        at = _nb_cdf(mu, int(line)) - (_nb_cdf(mu, int(line) - 1) if line >= 1 else 0.0)
+        over = max(0.0, 1.0 - under - at)
+        return {"over": round(over, 4), "under": round(under, 4), "push": round(at, 4)}
+    over = max(0.0, 1.0 - under)
+    return {"over": round(over, 4), "under": round(under, 4), "push": 0.0}
+
+
 def knockout(lam_h: float, lam_a: float, elo_h: float, elo_a: float) -> dict:
     """Extra time & penalties breakdown for a knockout tie."""
     m90 = score_matrix(lam_h, lam_a)

@@ -418,6 +418,40 @@ async def predict(home: str, away: str, minute: int | None = None,
     pred["stage"] = stage
     pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
     pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
+
+    # ---- Asian-line O/U: model % at the MARKET's actual lines ------------
+    goals_line, goals_prices, corners_line, corners_prices = 2.5, None, 9.5, None
+    try:
+        events, _ = await odds_client.board()
+        ev = next((e for e in events
+                   if {e["home_tla"], e["away_tla"]} == {home, away}), None)
+        if ev:
+            if ev.get("totals") and ev["totals"].get("point") is not None:
+                goals_line = float(ev["totals"]["point"])
+                goals_prices = {"over": ev["totals"].get("over"),
+                                "under": ev["totals"].get("under")}
+            extras = odds_client.cached_extras(ev["id"]) if ev.get("id") else None
+            ct = (extras or {}).get("corners_totals") or []
+            if ct:
+                # the line quoted closest to even money
+                best = min(ct, key=lambda c: abs((c.get("over") or 2) - (c.get("under") or 2)))
+                corners_line = float(best["point"])
+                corners_prices = {"over": best.get("over"), "under": best.get("under")}
+    except Exception:
+        pass
+
+    m_full = match_model.score_matrix(lam_h, lam_a, rho=ml_ensemble.dc_rho())
+    g_ou = match_model.prob_at_line(m_full, goals_line)
+    if abs(goals_line - 2.5) < 1e-9:        # at 2.5 the trained head applies
+        g_ou = {"over": pred["over25"], "under": round(1 - pred["over25"], 4), "push": 0.0}
+    c_mu = pred["corners"]["expected"]["total"]
+    pred["market_lines"] = {
+        "goals": {"line": goals_line, **g_ou, "market": goals_prices,
+                  "source": "market" if goals_prices else "default"},
+        "corners": {"line": corners_line, **periods.corners_at_line(c_mu, corners_line),
+                    "market": corners_prices,
+                    "source": "market" if corners_prices else "default"},
+    }
     return pred
 
 

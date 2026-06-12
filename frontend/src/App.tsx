@@ -87,7 +87,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 pb-16">
+    <div className="mx-auto max-w-7xl px-3 pb-28 sm:px-4 sm:pb-20">
       <header className="sticky top-0 z-10 -mx-4 mb-4 border-b border-slate-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#060913]/75">
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
@@ -147,10 +147,10 @@ export default function App() {
           </div>
         </div>
 
-        <nav className="mt-3 flex flex-wrap gap-1">
+        <nav className="-mx-3 mt-3 flex gap-1 overflow-x-auto px-3 pb-0.5 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
           {TABS.map((x) => (
             <button key={x.id} onClick={() => switchTab(x.id)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition sm:shrink ${
                 tab === x.id
                   ? "bg-gradient-to-r from-emerald-600 to-emerald-500 text-white shadow-md shadow-emerald-600/40"
                   : "text-slate-500 hover:bg-slate-200/80 dark:text-slate-400 dark:hover:bg-white/10"

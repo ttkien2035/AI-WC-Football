@@ -92,7 +92,7 @@ function LiveMatch({ match }: { match: Match }) {
       <div className="space-y-4">
         {/* score header */}
         <Card>
-          <div className="flex items-center justify-center gap-6 text-2xl font-extrabold">
+          <div className="flex flex-wrap items-center justify-center gap-3 text-lg font-extrabold sm:gap-6 sm:text-2xl">
             <span className="flex items-center gap-2">
               <Flag crest={match.home.crest} tla={match.home.tla} size={32} /> {match.home.name}
             </span>

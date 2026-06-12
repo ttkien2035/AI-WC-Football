@@ -76,6 +76,9 @@ export type Prediction = {
   elo: { home: number; away: number; expectancy: number };
   stage?: string | null;
   is_knockout?: boolean;
+  market_lines?: {
+    goals: LineOU; corners: LineOU;
+  };
   halves?: {
     h1?: { probs?: Record<string, number>; top_scores?: ScoreP[]; lambdas?: number[]; note?: string; final?: unknown };
     h2?: { probs?: Record<string, number>; top_scores?: ScoreP[]; lambdas?: number[]; note?: string };
@@ -96,6 +99,12 @@ export type Prediction = {
 };
 
 export type ScoreP = { home: number; away: number; p: number };
+
+export type LineOU = {
+  line: number; over: number; under: number; push: number;
+  market: { over: number | null; under: number | null } | null;
+  source: "market" | "default";
+};
 
 export type OddsRow = {
   match_id: number; utcDate: string; stage: string; group: string | null;

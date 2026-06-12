@@ -153,7 +153,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
   const c = pred.components;
   return (
     <div>
-      <div className="mb-4 flex items-center justify-center gap-4 text-lg font-bold">
+      <div className="mb-4 flex flex-wrap items-center justify-center gap-2 text-base font-bold sm:gap-4 sm:text-lg">
         <span className="flex items-center gap-2">
           <Flag crest={h?.crest} tla={pred.home} size={28} /> {h?.name ?? pred.home}
         </span>
@@ -193,6 +193,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
         ))}
       </div>
 
+      {pred.market_lines && <AsianLinePanel pred={pred} />}
       {ana && <AnalysisPanel ana={ana} />}
       {pred.halves && <HalvesPanel pred={pred} />}
       {pred.corners && <CornersPanel pred={pred} />}
@@ -333,6 +334,45 @@ function KnockoutPanel({ pred }: { pred: Prediction }) {
         {" — "}
         {t("match.via", { team: pred.away, a: pct(via("away").regulation), b: pct(via("away").extra_time), c: pct(via("away").penalties) })}
       </p>
+    </div>
+  );
+}
+
+function AsianLinePanel({ pred }: { pred: Prediction }) {
+  const t = useT();
+  const ml = pred.market_lines!;
+  const Row = ({ label, d }: { label: string; d: typeof ml.goals }) => (
+    <div className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
+        <span className="text-xs font-bold">
+          {label}{" "}
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+            {d.line}
+          </span>
+        </span>
+        <span className="text-[10px] text-slate-400">
+          {d.source === "market" ? `📊 ${t("match.line_market")}` : t("match.line_default")}
+          {d.market && d.market.over != null &&
+            ` · ${t("match.mkt_price")}: ${d.market.over?.toFixed(2)}/${d.market.under?.toFixed(2)}`}
+        </span>
+      </div>
+      <ProbBar label={t("match.over")} p={d.over} color="bg-orange-500" />
+      <div className="h-1" />
+      <ProbBar label={t("match.under")} p={d.under} color="bg-teal-500" />
+      {d.push > 0.001 && (
+        <p className="mt-0.5 text-right text-[10px] text-slate-400">
+          {t("match.push")}: {pct(d.push)}
+        </p>
+      )}
+    </div>
+  );
+  return (
+    <div className="mb-4">
+      <h3 className="mb-1 text-sm font-semibold">🎯 {t("match.asian")}</h3>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Row label={t("match.goals_line")} d={ml.goals} />
+        <Row label={t("match.corners_line2")} d={ml.corners} />
+      </div>
     </div>
   );
 }

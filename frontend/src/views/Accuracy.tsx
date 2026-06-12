@@ -86,7 +86,7 @@ export default function Accuracy() {
             <p className="mb-2 text-sm font-medium">
               {t("acc.backtest", { n: Object.values(metrics)[0]?.n ?? "?" })}
             </p>
-            <table className="w-full max-w-xl text-sm tabular-nums">
+            <div className="overflow-x-auto"><table className="w-full max-w-xl min-w-[420px] text-sm tabular-nums">
               <thead>
                 <tr className="text-left text-[11px] uppercase text-slate-400">
                   <th className="py-1">{t("acc.model")}</th>
@@ -105,7 +105,7 @@ export default function Accuracy() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </>
         )}
         {status?.report?.scoreline && status?.report?.markets && (

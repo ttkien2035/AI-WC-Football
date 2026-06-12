@@ -152,6 +152,12 @@ async def event_extras(event_id: str) -> dict | None:
     return out
 
 
+def cached_extras(event_id: str) -> dict | None:
+    """Per-event extras ONLY if already cached — never spends quota (used by
+    the hot predict path)."""
+    return cache.get(f"odds:extra:{event_id}", TTL_EXTRA)
+
+
 def quota() -> dict | None:
     q, _ = cache.get_stale(_QUOTA_KEY)
     return q

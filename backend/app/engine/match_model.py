@@ -84,6 +84,18 @@ def matrix_outcomes(m: np.ndarray) -> dict:
     }
 
 
+def prob_at_line(m: np.ndarray, line: float) -> dict:
+    """P(over/under/push) of total goals vs an Asian line (supports integer,
+    half and quarter lines — totals are integers so 2.25 and 2.5 share the
+    same strict-over region; push only exists on integer lines)."""
+    hi, ai = np.indices(m.shape)
+    tot = hi + ai
+    over = float(m[tot > line].sum())
+    under = float(m[tot < line].sum())
+    push = max(0.0, 1.0 - over - under)
+    return {"over": round(over, 4), "under": round(under, 4), "push": round(push, 4)}
+
+
 def top_scorelines(m: np.ndarray, k: int = 5, shift: tuple[int, int] = (0, 0)) -> list[dict]:
     flat = np.argsort(m, axis=None)[::-1][:k]
     out = []
