@@ -112,6 +112,16 @@ TOOL_DECLS = [
     {"name": "get_live_and_today",
      "description": "Live matches right now (score, minute, cards, corners) and today's fixtures.",
      "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_upcoming_fixtures",
+     "description": "UPCOMING fixtures (next matches): kickoff time UTC, stage/group, optionally filtered to one team. Use for 'trận kế tiếp', 'lịch thi đấu', 'khi nào X đá', knockout dates.",
+     "parameters": {"type": "object", "properties": {
+         "team": _team_arg("Lọc theo đội (tùy chọn)"),
+         "n": {"type": "integer", "description": "how many, default 6"}}}},
+    {"name": "get_expected_lineups",
+     "description": "Lineups for a matchup: the ANNOUNCED starting XI with formation when published (~1h before kickoff), otherwise the expected setup (usual formation, key players, fitness flags). Use for 'đội hình dự kiến', 'formation', 'ai đá chính'.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách")},
+         "required": ["home", "away"]}},
     {"name": "get_recent_results",
      "description": "RESULTS of recently finished World Cup matches: final + half-time score, goalscorers with minutes, cards, corners, possession. Use for any question about a match that already happened ('trận vừa rồi', 'kết quả').",
      "parameters": {"type": "object", "properties": {
@@ -159,6 +169,8 @@ TOOL_DECLS = [
 TOOL_LABELS = {
     "get_live_and_today": ("Xem trận live & hôm nay", "Checking live & today's matches"),
     "get_recent_results": ("Tra kết quả các trận đã đấu", "Fetching recent results"),
+    "get_upcoming_fixtures": ("Xem lịch các trận sắp tới", "Fetching upcoming fixtures"),
+    "get_expected_lineups": ("Tra đội hình (dự kiến/chính thức)", "Fetching lineups"),
     "get_match_prediction": ("Tra dự đoán trận đấu", "Fetching match prediction"),
     "get_team_overview": ("Phân tích đội bóng", "Analyzing team"),
     "get_title_odds": ("Xem cửa vô địch", "Fetching title odds"),
@@ -177,6 +189,36 @@ async def _exec_tool(name: str, args: dict) -> dict:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             return {"live": [_mt(m) for m in ms if m["status"] in service.LIVE_STATUSES],
                     "today": [_mt(m) for m in ms if m["utcDate"][:10] == today]}
+        if name == "get_upcoming_fixtures":
+            ms = await service.get_matches()
+            team = resolve_team(args.get("team", "")) if args.get("team") else None
+            ups = [m for m in ms if m["status"] in ("TIMED", "SCHEDULED")
+                   and m["home"]["tla"]]
+            if team:
+                ups = [m for m in ups if team in (m["home"]["tla"], m["away"]["tla"])]
+            ups.sort(key=lambda m: m["utcDate"])
+            return {"note": "times are UTC — convert for the user (VN = UTC+7)",
+                    "fixtures": [{"home": m["home"]["tla"], "away": m["away"]["tla"],
+                                  "kickoff_utc": m["utcDate"], "stage": m["stage"],
+                                  "group": m.get("group")}
+                                 for m in ups[:int(args.get("n") or 6)]]}
+        if name == "get_expected_lineups":
+            h, a = _resolve2(args)
+            ana = await service.analysis(h, a)
+            out = {"announced": ana["lineups_announced"]}
+            for tla in (h, a):
+                d = ana["teams"][tla]
+                lu = d.get("lineup")
+                out[tla] = {
+                    "formation": d.get("formation_live") or d["profile"].get("formation"),
+                    "formation_is_official": bool(d.get("formation_live")),
+                    "starting_xi": [p["name"] for p in (lu or {}).get("players", [])] or None,
+                    "key_players": [{"name": k["name"], "pos": k["pos"],
+                                     "status": k["status"]} for k in d["key_players"]],
+                    "manager": d["profile"].get("manager"),
+                    "manager_tactics": d.get("manager_note"),
+                }
+            return out
         if name == "get_recent_results":
             res = await service.recent_results(int(args.get("n") or 8))
             return {"results": [
@@ -336,7 +378,8 @@ def _system(lang: str) -> str:
 RULES:
 - Use the provided tools for EVERY app-model number you cite (probabilities, odds, Elo, simulations). Never invent statistics. If a tool errors, say what you couldn't fetch.
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
-- You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues. When internal tools don't cover it (history, transfers, fresh news, stadium/ticket info), call search_football_news to look it up on the web instead of refusing or guessing.
+- You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues. When internal tools don't cover it (pre-2018 head-to-heads, transfers, fresh news, stadium/ticket info), call search_football_news to look it up on the web instead of refusing or guessing.
+- Common question → tool map: "trận kế tiếp / lịch đấu / khi nào X đá" → get_upcoming_fixtures · "soi kèo" → get_market_odds (+ get_match_prediction for the verdict) · "AI dự đoán thế nào / tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web search) · "đội hình dự kiến / ai đá chính / formation" → get_expected_lineups · "kết quả trận X" → get_recent_results. Chain tools freely (e.g. next fixture → its odds).
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.

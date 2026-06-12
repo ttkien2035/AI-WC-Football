@@ -159,10 +159,11 @@ export default function ChatWidget() {
 
   const chips = msgs.length === 0
     ? [
+        t("chat.chip_next"),
         todayMatch && t("chat.chip_deep", { m: todayMatch }),
+        todayMatch && t("chat.chip_lineup", { m: todayMatch }),
         t("chat.chip_value"),
         t("chat.chip_title"),
-        todayMatch && t("chat.chip_whatif", { m: todayMatch }),
       ].filter(Boolean) as string[]
     : followups;
 
