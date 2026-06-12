@@ -13,11 +13,16 @@ async def _get(path: str, ttl: int, params: dict | None = None):
         return hit
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            r = await client.get(
-                f"{settings.fd_base}{path}",
-                headers={"X-Auth-Token": settings.football_api_key},
-                params=params,
-            )
+            r = None
+            # key pool: rotate to the next key on a 429 (per-key 10 req/min)
+            for api_key in settings.football_keys() or [""]:
+                r = await client.get(
+                    f"{settings.fd_base}{path}",
+                    headers={"X-Auth-Token": api_key},
+                    params=params,
+                )
+                if r.status_code != 429:
+                    break
             r.raise_for_status()
             data = r.json()
             cache.put(key, data)

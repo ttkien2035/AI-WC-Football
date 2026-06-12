@@ -13,6 +13,17 @@ class Settings(BaseSettings):
     )
 
     football_api_key: str = ""
+    football_api_key_1: str = Field(
+        default="", validation_alias=AliasChoices("FOOTBALL_API_KEY1", "FOOTBALL_API_KEY_1"))
+    football_api_key_2: str = Field(
+        default="", validation_alias=AliasChoices("FOOTBALL_API_KEY2", "FOOTBALL_API_KEY_2"))
+
+    def football_keys(self) -> list[str]:
+        """fd.org keys; rate limit is 10 req/min per key — usage sits ~1-2/min
+        thanks to caching, so extra keys are optional resilience, not a need."""
+        return [k for k in (self.football_api_key, self.football_api_key_1,
+                            self.football_api_key_2) if k]
+
     odds_api_key: str = ""
     odds_api_key_1: str = Field(
         default="", validation_alias=AliasChoices("ODDS_API_KEY1", "ODDS_API_KEY_1"))
