@@ -212,6 +212,27 @@ def _real_ko(matches: list[dict]) -> list[dict]:
     return out
 
 
+def _sim_elo_map(teams: dict, finished: tuple) -> tuple[dict, dict | None]:
+    """One strength source for the tournament MC, consistent with predict():
+    the ML pipeline's online-updated Elo when available (else live ratings),
+    PLUS the seeding/squad prior delta each team gets in per-match predict.
+    Venue/context can't be applied to simulated future fixtures (knockout
+    venues depend on the simulated bracket; context depends on simulated
+    standings) — the per-match engine layers those on top at view time."""
+    from .engine import strength_prior
+    ml_elo = ml_ensemble.elo_by_tla(finished)
+    if ml_elo and all(t in ml_elo for t in teams):
+        elo_map, goal_coefs = dict(ml_elo), ml_ensemble._artifacts()["rates"]
+    else:
+        elo_map, goal_coefs = {t: v["elo"] for t, v in teams.items()}, None
+    for t, v in teams.items():
+        # delta computed exactly as predict() does (live elo + played decay),
+        # transferred additively (both systems share the Elo points scale)
+        elo_map[t] = elo_map[t] + strength_prior.pot_shrink_delta(
+            t, v["elo"], v.get("played", 0))
+    return elo_map, goal_coefs
+
+
 async def run_simulation(runs: int | None = None, force: bool = False) -> dict:
     runs = runs or settings.n_sims_tournament
     teams = await get_teams()
@@ -228,16 +249,9 @@ async def run_simulation(runs: int | None = None, force: bool = False) -> dict:
     for g in groups:
         groups[g].sort(key=lambda t: teams[t]["position"])
 
-    # Prefer the ML pipeline's Elo scale + fitted goal rates (consistent pair);
-    # fall back to live eloratings + heuristic supremacy split.
+    # One strength source shared with predict() (ML elo or live + prior deltas)
     finished = _finished_tuple(matches)
-    ml_elo = ml_ensemble.elo_by_tla(finished)
-    goal_coefs = None
-    if ml_elo and all(t in ml_elo for t in teams):
-        elo_map = ml_elo
-        goal_coefs = ml_ensemble._artifacts()["rates"]
-    else:
-        elo_map = {t: v["elo"] for t, v in teams.items()}
+    elo_map, goal_coefs = _sim_elo_map(teams, finished)
 
     t0 = time.time()
     result = tournament.simulate(
@@ -286,12 +300,7 @@ async def simulate_what_if(home: str, away: str, gh: int, ga: int,
         groups[g].sort(key=lambda t: teams[t]["position"])
 
     finished = _finished_tuple(matches)
-    ml_elo = ml_ensemble.elo_by_tla(finished)
-    goal_coefs = None
-    if ml_elo and all(t in ml_elo for t in teams):
-        elo_map, goal_coefs = ml_elo, ml_ensemble._artifacts()["rates"]
-    else:
-        elo_map = {t: v["elo"] for t, v in teams.items()}
+    elo_map, goal_coefs = _sim_elo_map(teams, finished)
 
     hypo = tournament.simulate(
         n=runs, elo_by_tla=elo_map, groups=groups,

@@ -131,6 +131,58 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
             </div>
           </div>
         )}
+        {/* factor scorecard: is each bounded nudge earning its keep? */}
+        {status.factor_scorecard && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.scorecard")}</p>
+            <table className="w-full text-xs tabular-nums">
+              <thead>
+                <tr className="text-left text-slate-400">
+                  <th className="py-0.5">{t("pl.sc_factor")}</th><th>n</th>
+                  <th>{t("pl.sc_with")}</th><th>{t("pl.sc_without")}</th><th>Δ</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(status.factor_scorecard).map(([k, v]) => (
+                  <tr key={k} className="border-t border-slate-100 dark:border-white/10">
+                    <td className="py-1">{t(`pl.sc_${k}`)} <span className="text-slate-400">({v.metric})</span></td>
+                    <td>{v.n}</td>
+                    <td>{v.with?.toFixed(3) ?? "–"}</td>
+                    <td>{v.without?.toFixed(3) ?? "–"}</td>
+                    <td className={v.delta == null ? "" : v.delta < 0 ? "text-emerald-500 font-semibold" : v.delta > 0 ? "text-red-500 font-semibold" : ""}>
+                      {v.delta?.toFixed(3) ?? "–"}
+                    </td>
+                    <td>{v.verdict === "helping" ? "✓" : v.verdict === "hurting" ? "✗" : v.verdict === "neutral" ? "≈" : "…"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1 text-[10px] text-slate-400">{t("pl.sc_note")}</p>
+          </div>
+        )}
+        {/* meta-calibrated blend weights */}
+        {status.meta_weights && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.meta_w")}</p>
+            {status.meta_weights.served ? (
+              <p className="text-xs">
+                {["market", "ml", "poisson"].map((k) => (
+                  <span key={k} className="mr-3">
+                    {k}: <b>{status.meta_weights.served![k]}</b>
+                    <span className="text-slate-400"> ({t("pl.meta_hand")} {status.meta_weights.hand[k]})</span>
+                  </span>
+                ))}
+                <span className="text-slate-400">
+                  n={status.meta_weights.n} · RPS {status.meta_weights.rps_fitted} {t("pl.meta_vs")} {status.meta_weights.rps_hand}
+                </span>
+              </p>
+            ) : (
+              <p className="text-xs text-slate-400">
+                {t("pl.meta_waiting", { n: String(status.meta_weights.n) })}
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       {usage && <UsageCard usage={usage} />}

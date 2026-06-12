@@ -242,6 +242,16 @@ export type PipelineStatus = {
     test_rps: number | null;
   };
   elo_movers: { tla: string; delta: number; elo: number }[];
+  factor_scorecard: Record<string, {
+    n: number; metric: string; with?: number; without?: number;
+    delta?: number; verdict: string;
+  }>;
+  meta_weights: {
+    enabled: boolean; active?: boolean; n: number; reason?: string;
+    hand: Record<string, number>; served?: Record<string, number>;
+    fitted?: Record<string, number>; shrink_lambda?: number;
+    rps_hand?: number; rps_fitted?: number;
+  };
   sources: Record<string, { ok: boolean }>;
 };
 

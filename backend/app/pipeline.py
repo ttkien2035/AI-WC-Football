@@ -13,7 +13,50 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from . import cache, service
-from .engine import ml_ensemble
+from .engine import match_model, meta_weights, ml_ensemble
+
+
+def _over25(m) -> float:
+    import numpy as np
+    hi, ai = np.indices(m.shape)
+    return float(m[hi + ai > 2].sum())
+
+
+def _factor_counterfactuals(pred: dict) -> dict:
+    """Per-factor counterfactual predictions, computed AT SNAPSHOT TIME so the
+    scorecard can later grade each factor against the actual result without
+    hindsight re-prediction. Total-goals factors (style/context/venue) are
+    measured on the O/U channel (divide the multiplier back out of lambda);
+    the seeding prior is measured on the W/D/L channel via the fitted goal
+    rates (lambda' = lambda * exp(-/+ b*(dh-da)/100)). Each counterfactual is
+    model-channel-only (pre market/heads blend) — an isolated, fair A/B."""
+    comp = pred.get("components") or {}
+    lam = pred.get("lambdas") or {}
+    lh, la = lam.get("home"), lam.get("away")
+    if not lh or not la:
+        return {}
+    rho = ml_ensemble.dc_rho()
+    m_with = match_model.score_matrix(lh, la, rho=rho)
+    ov_with = round(_over25(m_with), 4)
+    out = {}
+    for name, f in (("style", (comp.get("style") or {}).get("total_factor")),
+                    ("context", (comp.get("context") or {}).get("factor")),
+                    ("venue", (comp.get("venue") or {}).get("factor"))):
+        if f and abs(f - 1.0) > 1e-3:
+            m_cf = match_model.score_matrix(lh / f, la / f, rho=rho)
+            out[name] = {"factor": f, "over25_with": ov_with,
+                         "over25_without": round(_over25(m_cf), 4)}
+    pd_ = ((comp.get("seed") or {}).get("prior_delta")) or {}
+    dh, da = pd_.get("home", 0.0), pd_.get("away", 0.0)
+    arts = ml_ensemble._artifacts()
+    if arts and arts.get("rates") and (dh or da):
+        shift = arts["rates"]["b"] * (dh - da) / 100.0
+        m_cf = match_model.score_matrix(lh * math.exp(-shift),
+                                        la * math.exp(shift), rho=rho)
+        out["prior"] = {"delta": {"home": dh, "away": da},
+                        "probs_with": match_model.matrix_outcomes(m_with),
+                        "probs_without": match_model.matrix_outcomes(m_cf)}
+    return out
 
 PREMATCH_WINDOW_H = 12       # snapshot anything kicking off within 12h
 LINEUP_REFRESH_MIN = 100     # re-snapshot inside this window once XIs are out
@@ -46,6 +89,7 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             pred = await service.predict(h, a)
         except Exception:
             continue
+        comp = pred.get("components") or {}
         cache.put(key, {
             "probs": pred["probs"],
             "lambdas": pred["lambdas"],
@@ -56,6 +100,11 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "market_lines": pred.get("market_lines"),
             "absence": pred.get("absence_penalty"),
             "lineup_aware": lineup_known,
+            # factor scorecard + meta-calibration inputs (graded post-match):
+            "factors": _factor_counterfactuals(pred),
+            "components": {k: comp.get(k) for k in ("ml", "market", "poisson")
+                           if comp.get(k)},
+            "weights": comp.get("weights"),
             "ts": now.isoformat(timespec="seconds"),
         })
         n += 1
@@ -269,6 +318,61 @@ async def review(limit: int = 30) -> dict:
     }
 
 
+def _rps(probs: dict, actual: str) -> float:
+    order = ("home", "draw", "away")
+    cp = rps = 0.0
+    for k in order[:2]:
+        cp += probs.get(k, 0.0)
+        rps += (cp - (1.0 if order.index(actual) <= order.index(k) else 0.0)) ** 2
+    return rps / 2
+
+
+def factor_scorecard(matches: list[dict]) -> dict:
+    """Grade every bounded factor against actual results, using the
+    counterfactuals captured pre-kickoff. with/without are model-channel
+    Brier (O/U factors) or RPS (seeding prior) — lower is better, so
+    delta < 0 means the factor IS helping. n counts only matches where the
+    factor actually fired."""
+    agg = {k: {"n": 0, "with": 0.0, "without": 0.0}
+           for k in ("style", "context", "venue", "prior")}
+    for m in matches:
+        if m["status"] != "FINISHED" or m["score"]["home"] is None:
+            continue
+        pm, _ = cache.get_stale(f"prematch:{m['id']}")
+        fac = (pm or {}).get("factors")
+        if not fac:
+            continue
+        gh, ga = m["score"]["home"], m["score"]["away"]
+        over = 1.0 if gh + ga > 2 else 0.0
+        actual = "home" if gh > ga else ("draw" if gh == ga else "away")
+        for k in ("style", "context", "venue"):
+            f = fac.get(k)
+            if f:
+                agg[k]["n"] += 1
+                agg[k]["with"] += (f["over25_with"] - over) ** 2
+                agg[k]["without"] += (f["over25_without"] - over) ** 2
+        if fac.get("prior"):
+            p = fac["prior"]
+            agg["prior"]["n"] += 1
+            agg["prior"]["with"] += _rps(p["probs_with"], actual)
+            agg["prior"]["without"] += _rps(p["probs_without"], actual)
+    out = {}
+    for k, a in agg.items():
+        n = a["n"]
+        row = {"n": n, "metric": "rps" if k == "prior" else "brier"}
+        if n:
+            w, wo = a["with"] / n, a["without"] / n
+            row.update({"with": round(w, 4), "without": round(wo, 4),
+                        "delta": round(w - wo, 4)})
+            row["verdict"] = ("insufficient" if n < 5 else
+                              "helping" if w < wo - 1e-4 else
+                              "hurting" if w > wo + 1e-4 else "neutral")
+        else:
+            row["verdict"] = "no_data"
+        out[k] = row
+    return out
+
+
 async def status() -> dict:
     matches = await service.get_matches()
     now = datetime.now(timezone.utc)
@@ -316,5 +420,7 @@ async def status() -> dict:
                          .get("ENSEMBLE", {}).get("rps")),
         },
         "elo_movers": movers[:10],
+        "factor_scorecard": factor_scorecard(matches),
+        "meta_weights": meta_weights.recompute_if_stale(matches),
         "sources": await service.sources_status(),
     }

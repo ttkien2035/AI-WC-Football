@@ -220,8 +220,15 @@ def predict_match(
     if in_play:
         w_m, w_p, w_e, w_f = 0.0, 1.0, 0.0, 0.0
     elif use_ml and use_market:
-        w_m, w_ml, w_p, w_e, w_f = (settings.ml_w_market, settings.ml_w_ml,
-                                    settings.ml_w_poisson, 0.0, settings.ml_w_form)
+        # meta-calibrated blend (learned from finished WC matches, shrunk
+        # toward the hand weights — engine/meta_weights.py) when available
+        from .meta_weights import current as _meta_current
+        mw = _meta_current()
+        w_m, w_ml, w_p, w_e, w_f = (
+            (mw["market"], mw["ml"], mw["poisson"], 0.0, settings.ml_w_form)
+            if mw else
+            (settings.ml_w_market, settings.ml_w_ml,
+             settings.ml_w_poisson, 0.0, settings.ml_w_form))
     elif use_ml:
         w_m, w_ml, w_p, w_e, w_f = (0.0, settings.ml_only_w_ml, settings.ml_only_w_poisson,
                                     settings.ml_only_w_elo, settings.ml_only_w_form)

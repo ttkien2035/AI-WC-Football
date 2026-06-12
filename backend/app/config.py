@@ -115,6 +115,12 @@ class Settings(BaseSettings):
     context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
     context_ko_lockdown_factor: float = 0.90
 
+    # Meta-calibration: learn the pre-match WDL blend weights from finished
+    # tournament matches (engine/meta_weights.py), shrunk toward hand weights
+    meta_weights_enabled: bool = True
+    meta_weights_min_n: int = 8     # finished samples needed to activate
+    meta_weights_k: float = 8.0     # shrink: fit carries n/(n+k)
+
     # Pot-tier strength prior (official draw pots -> bounded Elo shrink,
     # decays as the team plays; mainly steadies thin-data teams)
     pot_prior_enabled: bool = True
