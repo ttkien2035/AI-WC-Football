@@ -123,9 +123,11 @@ def predict_match(
     ml_probs: dict | None = None,      # trained ensemble W/D/L (engine/ml_ensemble)
     lam_override: tuple[float, float] | None = None,  # fitted goal rates
     red_cards: tuple[int, int] = (0, 0),  # sent-off counts (home, away), in-play
-    stage: str | None = None,             # GROUP_STAGE / LAST_32 / ... (KO caginess)
+    stage: str | None = None,             # GROUP_STAGE / LAST_32 / ... (record only)
     rho: float = 0.0,                     # Dixon-Coles low-score correction
     style_factor: float = 1.0,            # style-matchup lambda multiplier
+    context_factor: float = 1.0,          # match-context (stakes/KO/seeding) — owns KO caginess
+    draw_bump: float = 0.0,               # context: shift mass toward the draw
 ) -> dict:
     eh = effective_elo(home_tla, elo_h)
     ea = effective_elo(away_tla, elo_a)
@@ -140,13 +142,11 @@ def predict_match(
         lam_h = (1 - w_ad) * lam_h + w_ad * ad[0]
         lam_a = (1 - w_ad) * lam_a + w_ad * ad[1]
 
-    # knockout caginess: per-90 goal rate drops vs group stage (fitted 0.955)
-    if stage and stage != "GROUP_STAGE":
-        lam_h *= settings.ko_goal_factor
-        lam_a *= settings.ko_goal_factor
-    if style_factor != 1.0:
-        lam_h *= style_factor
-        lam_a *= style_factor
+    # style-matchup + match-context multipliers (context owns KO caginess now)
+    combined = style_factor * context_factor
+    if combined != 1.0:
+        lam_h *= combined
+        lam_a *= combined
 
     in_play = minute is not None
     if in_play:
@@ -216,6 +216,13 @@ def predict_match(
         blended[k] = v
     blended["home"] += w_f * form_delta
     blended["away"] -= w_f * form_delta
+    # context draw_bump (dead rubber / mutual-benefit / KO lockdown): shift
+    # mass from both win sides into the draw
+    if draw_bump and not in_play:
+        take = draw_bump * (blended["home"] + blended["away"])
+        blended["home"] -= take * blended["home"] / (blended["home"] + blended["away"])
+        blended["away"] -= take * blended["away"] / (blended["home"] + blended["away"])
+        blended["draw"] += take
     blended = {k: max(v, 1e-4) for k, v in blended.items()}
     s = sum(blended.values())
     blended = {k: v / s for k, v in blended.items()}

@@ -71,6 +71,14 @@ export type Prediction = {
     ml: Record<string, number> | null;
     form: { home: number | null; away: number | null; delta: number };
     weights: Record<string, number>;
+    style?: { total_factor: number; reason: string | null };
+    context?: {
+      factor: number;
+      stakes?: { home: string; away: string } | null;
+      seeding?: { team: string; gap: number } | null;
+      lockdown_underdog?: string | null;
+      notes: { key: string; params: Record<string, string | number> }[];
+    };
   };
   over25: number; btts: number;
   scorelines: { home: number; away: number; p: number }[];
@@ -231,6 +239,7 @@ export type ReviewRow = {
   };
   compare?: CompareBlock;
   notes?: { key: string; params: Record<string, string | number> }[];
+  improve?: string | null;
   elo_shift: { home: number; away: number } | null;
 };
 export type PipelineReview = {

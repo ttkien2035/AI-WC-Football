@@ -205,6 +205,38 @@ async def review(limit: int = 30) -> dict:
                  "draw" if ht["home"] == ht["away"] else "away") != actual):
             notes.append({"key": "n_ht_swing", "params": {}})
 
+        # ---- match-specific narrative: history + style + manager + context ----
+        from .engine.style_adjust import MANAGER_NOTES, _tags
+        from .team_profiles import PROFILES
+        try:
+            hh = evaluation.h2h(h, a, n=6)
+            if hh.get("summary"):
+                notes.append({"key": "n_h2h", "params": {
+                    "c": hh["summary"]["correct"], "n": hh["summary"]["n"]}})
+        except Exception:
+            pass
+        th, ta = _tags(h), _tags(a)
+        if th and ta:
+            both_def = bool(th & {"low_block", "counter"}) and bool(ta & {"low_block", "counter"})
+            if both_def and total_goals >= 3:
+                notes.append({"key": "n_style_open_surprise", "params": {}})
+            elif both_def:
+                notes.append({"key": "n_style_cagey", "params": {}})
+        mgr = [MANAGER_NOTES[t] for t in (h, a) if t in MANAGER_NOTES]
+        if mgr:
+            notes.append({"key": "n_manager", "params": {"note": " · ".join(mgr)}})
+
+        # ---- improvement suggestion keyed to the dominant miss ----
+        improve = None
+        if not correct and stage == "GROUP_STAGE":
+            improve = "imp_motivation" if p_actual < 0.3 else "imp_winner"
+        elif exp_goals is not None and abs(total_goals - exp_goals) >= 2:
+            improve = "imp_goals"
+        elif c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
+            improve = "imp_corners"
+        elif not correct:
+            improve = "imp_winner"
+
         rows.append({
             "match_id": m["id"], "date": m["utcDate"], "stage": m["stage"],
             "home": m["home"], "away": m["away"],
@@ -223,6 +255,7 @@ async def review(limit: int = 30) -> dict:
             },
             "compare": compare,
             "notes": notes,
+            "improve": improve,
             "elo_shift": elo_shift,
         })
 

@@ -205,6 +205,7 @@ function ResultPanel({ pred, teams, h2h, ana }: {
         ))}
       </div>
 
+      {pred.components.context?.notes?.length ? <ContextBanner pred={pred} /> : null}
       {pred.market_lines && <AsianLinePanel pred={pred} />}
       {ana && <AnalysisPanel ana={ana} />}
       {pred.halves && <HalvesPanel pred={pred} />}
@@ -346,6 +347,27 @@ function KnockoutPanel({ pred }: { pred: Prediction }) {
         {" — "}
         {t("match.via", { team: pred.away, a: pct(via("away").regulation), b: pct(via("away").extra_time), c: pct(via("away").penalties) })}
       </p>
+    </div>
+  );
+}
+
+function ContextBanner({ pred }: { pred: Prediction }) {
+  const t = useT();
+  const c = pred.components.context!;
+  const stakeWord = (s?: string) => s ? t(`ctx.stake_${s}`) : "";
+  return (
+    <div className="mb-4 rounded-xl border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-700/50 dark:bg-amber-950/30">
+      <h3 className="mb-1 text-sm font-semibold text-amber-700 dark:text-amber-300">
+        🧮 {t("match.context")}
+      </h3>
+      {c.stakes && (
+        <p className="mb-1 text-xs font-medium">
+          {pred.home}: <b>{stakeWord(c.stakes.home)}</b> · {pred.away}: <b>{stakeWord(c.stakes.away)}</b>
+        </p>
+      )}
+      {c.notes.map((n, i) => (
+        <p key={i} className="text-xs leading-5 text-slate-600 dark:text-slate-300">• {t(n.key, n.params)}</p>
+      ))}
     </div>
   );
 }

@@ -93,11 +93,27 @@ class Settings(BaseSettings):
 
     # Score-model corrections (fitted from 49k-match history)
     ko_goal_factor: float = 0.955   # knockout caginess, per-90 (WC 1986-2022)
+    # per-stage caginess multipliers (escalate toward the final)
+    ko_stage_factors: dict = {
+        "LAST_32": 0.97, "LAST_16": 0.95, "QUARTER_FINALS": 0.93,
+        "SEMI_FINALS": 0.91, "THIRD_PLACE": 0.97, "FINAL": 0.90,
+    }
 
     # Style/tactics interaction layer (literature-direction, bounded, audited
     # in-tournament via pipeline review)
     style_adjust_enabled: bool = True
     style_total_max: float = 0.06   # max |lambda adjustment| from style matchup
+
+    # Match-context layer (final-group-game stakes / dead rubber / seeding)
+    context_adjust_enabled: bool = True
+    context_dead_factor: float = 0.88     # both teams' fate settled -> fewer goals
+    context_decider_factor: float = 0.98  # both must-win -> mild knockout caution
+    context_seeding_elo_gap: float = 60.0 # Elo edge to flag "finish 2nd to dodge"
+    context_seeding_factor: float = 0.97  # small: teams often still try to win
+    # Knockout caution escalates by stage (replaces flat ko_goal_factor);
+    # big-mismatch ties: underdog locks down & plays for the shootout lottery
+    context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
+    context_ko_lockdown_factor: float = 0.90
 
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half

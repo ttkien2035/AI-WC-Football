@@ -377,8 +377,14 @@ async def predict(home: str, away: str, minute: int | None = None,
     finished = _finished_tuple(matches)
     ml_probs = ml_ensemble.predict_wdl(home, away, finished, elo_adjust=elo_adjust)
     lam_override = ml_ensemble.goal_lambdas(home, away, finished, elo_adjust=elo_adjust)
-    from .engine import style_adjust
+    from .engine import style_adjust, context as ctx_engine
     sf, sf_reason = style_adjust.total_goals_factor(home, away)
+    sim_cache = await latest_simulation()
+    ctx = ctx_engine.match_context(
+        home, away, stage, fixture.get("group") if fixture else None,
+        teams, matches, sim_cache,
+        match_model.effective_elo(home, teams[home]["elo"]),
+        match_model.effective_elo(away, teams[away]["elo"]))
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
@@ -392,6 +398,7 @@ async def predict(home: str, away: str, minute: int | None = None,
         red_cards=red_cards,
         stage=stage, rho=ml_ensemble.dc_rho(),
         style_factor=sf,
+        context_factor=ctx["factor"], draw_bump=ctx.get("draw_bump", 0.0),
     )
     if pen_h or pen_a:
         pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
@@ -409,6 +416,12 @@ async def predict(home: str, away: str, minute: int | None = None,
                 "over25": round(mk["over25"], 4), "btts": round(mk["btts"], 4)}
 
     pred["components"]["style"] = {"total_factor": sf, "reason": sf_reason}
+    pred["components"]["context"] = {
+        "factor": round(ctx["factor"], 3),
+        "stakes": ctx.get("stakes"), "seeding": ctx.get("seeding"),
+        "lockdown_underdog": ctx.get("lockdown_underdog"),
+        "notes": ctx.get("notes", []),
+    }
 
     # ---- period-level extensions ----
     lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]

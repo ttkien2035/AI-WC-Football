@@ -383,6 +383,11 @@ function ReviewCard({ r }: { r: ReviewRow }) {
         <div className="mt-2 rounded-lg bg-sky-50 p-2 text-xs leading-5 dark:bg-sky-950/30">
           <p className="mb-0.5 font-semibold text-sky-700 dark:text-sky-300">🔍 {t("pl.analysis")}</p>
           {r.notes.map((n, i) => <p key={i}>• {t(n.key, n.params)}</p>)}
+          {r.improve && (
+            <p className="mt-1 font-medium text-amber-600 dark:text-amber-400">
+              🛠 {t("pl.improve")}: {t(r.improve)}
+            </p>
+          )}
           {r.elo_shift && (
             <p className="mt-1 text-slate-500 dark:text-slate-400">
               {t("pl.model_update", {
