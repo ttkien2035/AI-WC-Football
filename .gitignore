@@ -20,3 +20,4 @@ frontend/dist/
 
 # Misc
 .DS_Store
+backend/ml/data/
