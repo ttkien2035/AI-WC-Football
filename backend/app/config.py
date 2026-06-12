@@ -14,6 +14,16 @@ class Settings(BaseSettings):
 
     football_api_key: str = ""
     odds_api_key: str = ""
+    odds_api_key_1: str = Field(
+        default="", validation_alias=AliasChoices("ODDS_API_KEY1", "ODDS_API_KEY_1"))
+    odds_api_key_2: str = Field(
+        default="", validation_alias=AliasChoices("ODDS_API_KEY2", "ODDS_API_KEY_2"))
+
+    def odds_keys(self) -> list[str]:
+        """All Odds-API keys, primary first — clients rotate on quota errors
+        (free tier is 500 credits/MONTH per key)."""
+        return [k for k in (self.odds_api_key, self.odds_api_key_1,
+                            self.odds_api_key_2) if k]
     admin_token: str = ""      # gates /api/pipeline/*, /api/refresh, /api/ml/retrain
     gemini_api_key: str = Field(
         default="", validation_alias=AliasChoices("GEMINI_API", "GEMINI_API_KEY"))

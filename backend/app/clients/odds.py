@@ -30,20 +30,61 @@ def _tla(name: str) -> str | None:
     return _NAME_TO_TLA.get((name or "").strip().lower())
 
 
-def _track_quota(r: httpx.Response) -> None:
+KEY_COOLDOWN_S = 24 * 3600   # monthly quota: re-probe exhausted keys daily
+
+
+def _available_keys() -> list[tuple[int, str]]:
+    keys = settings.odds_keys()
+    fresh = []
+    import time
+    for i, k in enumerate(keys):
+        ts, _ = cache.get_stale(f"odds:cooldown:{i}")
+        if ts and time.time() - float(ts) < KEY_COOLDOWN_S:
+            continue
+        fresh.append((i, k))
+    return fresh or list(enumerate(keys))
+
+
+def _mark_exhausted(idx: int) -> None:
+    import logging, time
+    logging.getLogger("odds").warning(
+        "odds key #%d quota-exhausted — cooling down 24h", idx)
+    cache.put(f"odds:cooldown:{idx}", time.time())
+
+
+def _is_quota_error(r: httpx.Response) -> bool:
+    if r.status_code == 429:
+        return True
+    if r.status_code in (401, 403) and any(
+            w in r.text.lower() for w in ("quota", "usage", "credit")):
+        return True
+    return False
+
+
+def _track_quota(r: httpx.Response, idx: int) -> None:
     rem = r.headers.get("x-requests-remaining")
     used = r.headers.get("x-requests-used")
     if rem is not None:
-        cache.put(_QUOTA_KEY, {"remaining": rem, "used": used})
+        cache.put(_QUOTA_KEY, {"remaining": rem, "used": used, "key_index": idx})
 
 
 async def _api_get(path: str, params: dict):
+    """GET with key-pool failover: a key hitting its monthly quota cools down
+    24h and the request retries with the next key."""
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(timeout=15) as client:
-        r = await client.get(f"{settings.odds_base}{path}",
-                             params={"apiKey": settings.odds_api_key, **params})
-        r.raise_for_status()
-        _track_quota(r)
-        return r.json()
+        for idx, key in _available_keys():
+            r = await client.get(f"{settings.odds_base}{path}",
+                                 params={"apiKey": key, **params})
+            if _is_quota_error(r):
+                _mark_exhausted(idx)
+                last_exc = httpx.HTTPStatusError(
+                    "quota", request=r.request, response=r)
+                continue
+            r.raise_for_status()
+            _track_quota(r, idx)
+            return r.json()
+    raise last_exc or httpx.HTTPError("no odds API keys available")
 
 
 def _avg_price(events_outcomes: list[float]) -> float | None:
@@ -97,7 +138,7 @@ def _parse_event(ev: dict) -> dict | None:
 
 async def board() -> tuple[list[dict], str]:
     """All upcoming WC events with featured markets. ([], 'disabled') w/o key."""
-    if not settings.odds_api_key:
+    if not settings.odds_keys():
         return [], "disabled"
     hit = cache.get(_BULK_KEY, TTL_BULK)
     if hit is not None:
