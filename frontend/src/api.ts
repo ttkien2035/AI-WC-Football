@@ -254,8 +254,14 @@ export type CompareBlock = {
   total_goals: { pred_xg: number | null; actual: number };
   over25: { pred_p: number | null; actual: boolean };
   btts: { pred_p: number | null; actual: boolean };
-  corners: { pred: number | null; actual: number | null;
-             detail: { home: number | null; away: number | null } | null };
+  corners: {
+    // O/U verdict shape (new snapshots) — falls back to expectation-only
+    line?: number; p_over?: number; pick?: "over" | "under";
+    expected_total?: number | null; actual_total?: number | null;
+    actual?: "over" | "under" | "push"; hit?: boolean; line_source?: string;
+    pred?: number | null;
+    detail: { home: number | null; away: number | null } | null;
+  };
 };
 
 export type TournamentEval = {

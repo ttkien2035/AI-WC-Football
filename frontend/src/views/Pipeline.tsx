@@ -349,12 +349,30 @@ function ReviewCard({ r }: { r: ReviewRow }) {
                 actual={r.compare.btts.actual ? "✓" : "✗"}
                 hit={r.compare.btts.pred_p != null
                   ? (r.compare.btts.pred_p > 0.5) === r.compare.btts.actual : undefined} />
-              <CmpRow label={t("pl.c_corners")}
-                pred={r.compare.corners.pred != null ? `~${r.compare.corners.pred}` : "–"}
-                actual={r.compare.corners.actual != null
-                  ? `${r.compare.corners.actual}${r.compare.corners.detail
-                      ? ` (${r.compare.corners.detail.home}–${r.compare.corners.detail.away})` : ""}`
-                  : "–"} />
+              {(() => {
+                const c = r.compare!.corners as any;
+                const ouWord = (k: string) =>
+                  k === "over" ? t("match.over") : k === "under" ? t("match.under") : t("match.push");
+                if (c.line != null && c.pick) {
+                  return (
+                    <CmpRow
+                      label={`${t("pl.c_corners")} ${c.line}`}
+                      pred={`${ouWord(c.pick)} (${pct(c.pick === "over" ? c.p_over : 1 - c.p_over, 0)})${
+                        c.expected_total != null ? ` · ~${c.expected_total}` : ""}`}
+                      actual={c.actual_total != null
+                        ? `${c.actual_total}${c.detail ? ` (${c.detail.home}–${c.detail.away})` : ""} → ${
+                            c.actual ? ouWord(c.actual) : "–"}`
+                        : "–"}
+                      hit={c.hit}
+                    />
+                  );
+                }
+                return (
+                  <CmpRow label={t("pl.c_corners")}
+                    pred={c.pred != null ? `~${c.pred}` : "–"}
+                    actual={c.actual != null ? String(c.actual) : "–"} />
+                );
+              })()}
             </tbody>
           </table>
         </div>

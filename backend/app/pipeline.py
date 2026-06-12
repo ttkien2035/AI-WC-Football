@@ -53,12 +53,39 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "over25": pred.get("over25"),
             "btts": pred.get("btts"),
             "corners_expected": (pred.get("corners") or {}).get("expected"),
+            "market_lines": pred.get("market_lines"),
             "absence": pred.get("absence_penalty"),
             "lineup_aware": lineup_known,
             "ts": now.isoformat(timespec="seconds"),
         })
         n += 1
     return n
+
+
+def _corners_ou_verdict(pm: dict | None, c_exp: float | None,
+                        c_total: int | None, corners: dict | None) -> dict:
+    """Grade corners as Over/Under at the line — the model's pick (Tài/Xỉu)
+    vs what actually happened, which is checkable, unlike 'expected ~10.04'."""
+    ml_c = ((pm or {}).get("market_lines") or {}).get("corners")
+    if ml_c and ml_c.get("over") is not None:
+        line, p_over = float(ml_c["line"]), float(ml_c["over"])
+        src = ml_c.get("source", "market")
+    elif c_exp is not None:
+        # old snapshots: derive at default 9.5 from the stored expectation
+        from .engine.periods import corners_at_line
+        line, src = 9.5, "default"
+        p_over = corners_at_line(float(c_exp), line)["over"]
+    else:
+        return {"pred": c_exp, "actual": c_total, "detail": corners}
+    pick = "over" if p_over >= 0.5 else "under"
+    out = {"line": line, "p_over": round(p_over, 4), "pick": pick,
+           "expected_total": c_exp, "actual_total": c_total,
+           "detail": corners, "line_source": src}
+    if c_total is not None:
+        actual = "over" if c_total > line else ("push" if c_total == line else "under")
+        out["actual"] = actual
+        out["hit"] = (actual == "push") or (pick == actual)
+    return out
 
 
 def _surprise_tag(correct: bool, p_actual: float, p_pick: float) -> str:
@@ -148,8 +175,7 @@ async def review(limit: int = 30) -> dict:
                        "actual": total_goals > 2},
             "btts": {"pred_p": (pm or {}).get("btts"),
                      "actual": gh > 0 and ga > 0},
-            "corners": {"pred": c_exp, "actual": c_total,
-                        "detail": corners},
+            "corners": _corners_ou_verdict(pm, c_exp, c_total, corners),
         }
 
         notes = []
