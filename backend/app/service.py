@@ -471,6 +471,9 @@ async def predict(home: str, away: str, minute: int | None = None,
     }
     pred["components"]["venue"] = {"factor": ven["factor"], "venue": ven["venue"],
                                    "weather": ven.get("weather")}
+    # real-fixture status so the UI can label market absence correctly
+    # (bookmakers pull prices at kickoff; hypothetical pairs never have any)
+    pred["fixture_status"] = fixture["status"] if fixture else None
     from .static_data import pot_of, group_difficulty
     pred["components"]["seed"] = {
         "home_pot": pot_of(home), "away_pot": pot_of(away),

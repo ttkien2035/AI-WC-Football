@@ -233,7 +233,13 @@ function ResultPanel({ pred, teams, h2h, ana }: {
         </tbody>
       </table>
       {!c.market && !pred.in_play && (
-        <p className="mt-2 text-[11px] text-slate-400">{t("match.no_market")}</p>
+        <p className="mt-2 text-[11px] text-slate-400">
+          {pred.fixture_status === "FINISHED"
+            ? t("match.market_closed")
+            : pred.fixture_status
+              ? t("match.no_market")
+              : t("match.market_hypo")}
+        </p>
       )}
       <p className="mt-2 text-[11px] text-slate-400">
         Elo: {pred.elo.home.toFixed(0)} vs {pred.elo.away.toFixed(0)} ({pct(pred.elo.expectancy)})

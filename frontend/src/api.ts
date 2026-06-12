@@ -62,6 +62,7 @@ export type Analysis = {
 
 export type Prediction = {
   home: string; away: string; in_play: boolean; minute: number | null;
+  fixture_status: string | null;
   score: { home: number; away: number } | null;
   lambdas: Record<string, number>;
   probs: { home: number; draw: number; away: number };

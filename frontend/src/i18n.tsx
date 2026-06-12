@@ -64,8 +64,16 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "match.elo_row": { vi: "Kỳ vọng Elo", en: "Elo expectancy" },
   "match.market_row": { vi: "Kèo thị trường (de-vig)", en: "Market odds (de-vig)" },
   "match.no_market": {
-    vi: "Chưa có kèo thị trường (thiếu ODDS_API_KEY hoặc trận chưa có giá) — chỉ dùng model.",
-    en: "Market odds unavailable (no ODDS_API_KEY or no quote for this fixture) — model blend only.",
+    vi: "Nhà cái chưa mở kèo trận này — dự đoán chỉ dùng model.",
+    en: "Bookmakers haven't priced this fixture yet — model blend only.",
+  },
+  "match.market_closed": {
+    vi: "Trận đã kết thúc — kèo thị trường đã đóng (nhà cái gỡ giá khi bóng lăn); đây là dự đoán hồi cứu của model.",
+    en: "Match finished — market odds are closed (bookmakers pull prices at kickoff); this is the model's retrospective view.",
+  },
+  "match.market_hypo": {
+    vi: "Cặp đấu giả định (chưa có lịch) — không có kèo thị trường, chỉ dùng model.",
+    en: "Hypothetical matchup (not scheduled) — no market odds, model only.",
   },
   "match.halves": { vi: "Theo hiệp đấu", en: "By half" },
   "match.h1": { vi: "Hiệp 1", en: "1st half" },
