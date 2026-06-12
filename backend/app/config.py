@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # Score-model corrections (fitted from 49k-match history)
     ko_goal_factor: float = 0.955   # knockout caginess, per-90 (WC 1986-2022)
 
+    # Style/tactics interaction layer (literature-direction, bounded, audited
+    # in-tournament via pipeline review)
+    style_adjust_enabled: bool = True
+    style_total_max: float = 0.06   # max |lambda adjustment| from style matchup
+
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
     corners_base: float = 9.67       # fitted: 9k club matches (validated vs intl avg)

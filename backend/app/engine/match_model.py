@@ -125,6 +125,7 @@ def predict_match(
     red_cards: tuple[int, int] = (0, 0),  # sent-off counts (home, away), in-play
     stage: str | None = None,             # GROUP_STAGE / LAST_32 / ... (KO caginess)
     rho: float = 0.0,                     # Dixon-Coles low-score correction
+    style_factor: float = 1.0,            # style-matchup lambda multiplier
 ) -> dict:
     eh = effective_elo(home_tla, elo_h)
     ea = effective_elo(away_tla, elo_a)
@@ -143,6 +144,9 @@ def predict_match(
     if stage and stage != "GROUP_STAGE":
         lam_h *= settings.ko_goal_factor
         lam_a *= settings.ko_goal_factor
+    if style_factor != 1.0:
+        lam_h *= style_factor
+        lam_a *= style_factor
 
     in_play = minute is not None
     if in_play:

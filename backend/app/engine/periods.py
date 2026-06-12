@@ -118,7 +118,8 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
             team_rates: tuple[dict | None, dict | None] = (None, None),
             minute: int | None = None,
             corners_so_far: dict | None = None,
-            score_diff: int = 0) -> dict:
+            score_diff: int = 0,
+            share_bump: tuple[float, float] = (0.0, 0.0)) -> dict:
     """Poisson corners model. Total scales with attack intensity; home share
     follows an Elo-based dominance proxy; per-half split from config.
     team_rates: in-tournament per-team averages (LiveScore) blended in."""
@@ -126,6 +127,8 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
     total = settings.corners_base * intensity
     we = elo_expected(elo_h, elo_a)            # dominance proxy
     share_h = 0.35 + 0.30 * we                 # 0.35..0.65
+    # style bumps (wing-play/possession earn; low-block opponents concede)
+    share_h = min(0.7, max(0.3, share_h + share_bump[0] - share_bump[1]))
     c_h, c_a = total * share_h, total * (1 - share_h)
 
     # blend in observed tournament rates once a team has played

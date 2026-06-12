@@ -24,7 +24,15 @@ export default function MatchSim() {
 
   useEffect(() => {
     api.teams().then(setTeams);
-    api.live().then((d) => setLive(d.live));
+    api.live().then((d) => {
+      setLive(d.live);
+      // default pair = the live match (most relevant right now)
+      const lm = d.live[0];
+      if (lm?.home.tla && lm.away.tla) {
+        setHome(lm.home.tla);
+        setAway(lm.away.tla);
+      }
+    });
     api.matches().then((d) => {
       const next = d.matches
         .filter((m) => (m.status === "TIMED" || m.status === "SCHEDULED")
@@ -32,6 +40,10 @@ export default function MatchSim() {
         .sort((x, y) => x.utcDate.localeCompare(y.utcDate))
         .slice(0, 6);
       setUpcoming(next);
+      // no live match -> default to the next kickoff
+      const up = next[0];
+      setHome((cur) => (cur === "MEX" && up?.home.tla ? up.home.tla : cur));
+      setAway((cur) => (cur === "RSA" && up?.away.tla ? up.away.tla : cur));
     });
   }, []);
 
@@ -402,6 +414,9 @@ function AnalysisPanel({ ana }: { ana: Analysis }) {
                 )}
               </p>
               {d.profile.manager && <p>{t("ana.manager")}: {d.profile.manager}</p>}
+              {d.manager_note && (
+                <p className="mt-0.5 italic text-slate-500 dark:text-slate-400">🧠 {d.manager_note}</p>
+              )}
               {d.profile.style && (
                 <p>{t("ana.style")}: {d.profile.style.map((s) => t(`style.${s}`)).join(" · ")}</p>
               )}

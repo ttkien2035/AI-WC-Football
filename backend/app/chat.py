@@ -215,7 +215,8 @@ async def _exec_tool(name: str, args: dict) -> dict:
             teams = await service.get_teams()
             sim = await service.latest_simulation() or {}
             from .team_profiles import PROFILES
-            return {"team": t, **{k: teams[t][k] for k in
+            from .engine.style_adjust import MANAGER_NOTES
+            return {"team": t, "manager_tactics": MANAGER_NOTES.get(t), **{k: teams[t][k] for k in
                     ("name", "group", "position", "played", "points", "gf", "ga", "elo", "fifa_rank")},
                     "sim_odds": (sim.get("teams") or {}).get(t),
                     "profile": PROFILES.get(t)}

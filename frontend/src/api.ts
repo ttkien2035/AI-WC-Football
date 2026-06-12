@@ -49,6 +49,7 @@ export type Analysis = {
   home: string; away: string; lineups_announced: boolean; stage: string | null;
   teams: Record<string, {
     profile: { formation?: string; style?: string[]; manager?: string; value_tier?: number };
+    manager_note?: string | null;
     lineup: LineupSide | null;
     formation_live: string | null;
     key_players: KeyPlayer[];

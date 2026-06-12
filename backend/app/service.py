@@ -377,6 +377,8 @@ async def predict(home: str, away: str, minute: int | None = None,
     finished = _finished_tuple(matches)
     ml_probs = ml_ensemble.predict_wdl(home, away, finished, elo_adjust=elo_adjust)
     lam_override = ml_ensemble.goal_lambdas(home, away, finished, elo_adjust=elo_adjust)
+    from .engine import style_adjust
+    sf, sf_reason = style_adjust.total_goals_factor(home, away)
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
@@ -389,6 +391,7 @@ async def predict(home: str, away: str, minute: int | None = None,
         ml_probs=ml_probs, lam_override=lam_override,
         red_cards=red_cards,
         stage=stage, rho=ml_ensemble.dc_rho(),
+        style_factor=sf,
     )
     if pen_h or pen_a:
         pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
@@ -405,6 +408,8 @@ async def predict(home: str, away: str, minute: int | None = None,
             pred["components"]["markets_head"] = {
                 "over25": round(mk["over25"], 4), "btts": round(mk["btts"], 4)}
 
+    pred["components"]["style"] = {"total_factor": sf, "reason": sf_reason}
+
     # ---- period-level extensions ----
     lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]
     eh, ea = pred["elo"]["home"], pred["elo"]["away"]
@@ -414,7 +419,8 @@ async def predict(home: str, away: str, minute: int | None = None,
         lam_h, lam_a, eh, ea,
         team_rates=(corner_rates(home), corner_rates(away)),
         minute=minute, corners_so_far=corners_now,
-        score_diff=abs(hg - ag) if minute is not None else 0)
+        score_diff=abs(hg - ag) if minute is not None else 0,
+        share_bump=style_adjust.corners_share_bump(home, away))
     pred["stage"] = stage
     pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
     pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
@@ -598,8 +604,10 @@ async def analysis(home: str, away: str) -> dict:
             squad = await fd.team_squad(teams[tla]["id"])
         except Exception:
             squad = []
+        from .engine.style_adjust import MANAGER_NOTES
         out[tla] = {
             "profile": prof,
+            "manager_note": MANAGER_NOTES.get(tla),
             "lineup": lu_side,                       # None until announced
             "formation_live": (lu_side or {}).get("formation"),
             "key_players": kps,
