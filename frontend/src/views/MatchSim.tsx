@@ -391,6 +391,17 @@ function AsianLinePanel({ pred }: { pred: Prediction }) {
             ` · ${t("match.mkt_price")}: ${d.market.over?.toFixed(2)}/${d.market.under?.toFixed(2)}`}
         </span>
       </div>
+      {d.confidence && (
+        <p className="mb-1 text-[11px] font-semibold">
+          {d.confidence === "toss_up" ? (
+            <span className="text-amber-600 dark:text-amber-400">{t("conf.toss_up")}</span>
+          ) : (
+            <span className="text-emerald-600 dark:text-emerald-400">
+              {t("conf.pick")}: {d.pick === "over" ? t("match.over") : t("match.under")} ({t(`conf.${d.confidence}`)})
+            </span>
+          )}
+        </p>
+      )}
       <ProbBar label={t("match.over")} p={d.over} color="bg-orange-500" />
       <div className="h-1" />
       <ProbBar label={t("match.under")} p={d.under} color="bg-teal-500" />

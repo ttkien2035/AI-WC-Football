@@ -73,6 +73,31 @@ def score_matrix(lam_h: float, lam_a: float, max_g: int | None = None,
     return m / m.sum()
 
 
+def reconcile_matrix(m: np.ndarray, probs: dict, over25: float,
+                     btts: float, iters: int = 40) -> np.ndarray:
+    """Iterative proportional fitting: tilt the score matrix so its marginals
+    match the blended headline targets — W/D/L, Over 2.5, BTTS — while staying
+    as close as possible (KL) to the Poisson shape. Afterwards the scoreline
+    list, O/U, BTTS and most-likely score all read from ONE coherent
+    distribution, so they can't contradict each other."""
+    m = np.maximum(m.copy(), 1e-12)
+    hi, ai = np.indices(m.shape)
+    regions = [
+        # (mask, target) partitions; each iteration rescales every partition
+        ([hi > ai, hi == ai, hi < ai], [probs["home"], probs["draw"], probs["away"]]),
+        ([hi + ai > 2, hi + ai <= 2], [over25, 1 - over25]),
+        ([(hi >= 1) & (ai >= 1), ~((hi >= 1) & (ai >= 1))], [btts, 1 - btts]),
+    ]
+    for _ in range(iters):
+        for masks, targets in regions:
+            for mask, tgt in zip(masks, targets):
+                cur = m[mask].sum()
+                if cur > 1e-9 and tgt > 1e-9:
+                    m[mask] *= tgt / cur
+            m /= m.sum()
+    return m
+
+
 def matrix_outcomes(m: np.ndarray) -> dict:
     h_idx, a_idx = np.indices(m.shape)
     return {

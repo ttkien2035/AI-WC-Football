@@ -125,6 +125,8 @@ export type LineOU = {
   line: number; over: number; under: number; push: number;
   market: { over: number | null; under: number | null } | null;
   source: "market" | "default";
+  pick?: "over" | "under";
+  confidence?: "toss_up" | "lean" | "clear";
 };
 
 export type OddsRow = {

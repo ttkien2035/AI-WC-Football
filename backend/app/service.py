@@ -417,6 +417,17 @@ async def predict(home: str, away: str, minute: int | None = None,
             pred["components"]["markets_head"] = {
                 "over25": round(mk["over25"], 4), "btts": round(mk["btts"], 4)}
 
+    # ---- reconcile scorelines with the headline marginals (consistency) ----
+    # Tilt the score matrix to match the final W/D/L + Over2.5 + BTTS so the
+    # scoreline list can't contradict the percentages shown above.
+    if minute is None:
+        lh0, la0 = pred["lambdas"]["home"], pred["lambdas"]["away"]
+        m_rec = match_model.reconcile_matrix(
+            match_model.score_matrix(lh0, la0, rho=ml_ensemble.dc_rho()),
+            pred["probs"], pred["over25"], pred["btts"])
+        pred["scorelines"] = match_model.top_scorelines(m_rec)
+        pred["_recon_matrix"] = m_rec    # reused for consistent market lines
+
     pred["components"]["style"] = {"total_factor": sf, "reason": sf_reason}
     pred["components"]["context"] = {
         "factor": round(ctx["factor"], 3),
@@ -476,18 +487,30 @@ async def predict(home: str, away: str, minute: int | None = None,
     except Exception:
         pass
 
-    m_full = match_model.score_matrix(lam_h, lam_a, rho=ml_ensemble.dc_rho())
+    # read goal O/U at any line from the SAME reconciled matrix (consistency)
+    m_full = pred.pop("_recon_matrix", None)
+    if m_full is None:
+        m_full = match_model.score_matrix(lam_h, lam_a, rho=ml_ensemble.dc_rho())
     g_ou = match_model.prob_at_line(m_full, goals_line)
-    if abs(goals_line - 2.5) < 1e-9:        # at 2.5 the trained head applies
+    if abs(goals_line - 2.5) < 1e-9:        # at 2.5 the trained head value is canonical
         g_ou = {"over": pred["over25"], "under": round(1 - pred["over25"], 4), "push": 0.0}
     c_mu = pred["corners"]["expected"]["total"]
-    pred["market_lines"] = {
-        "goals": {"line": goals_line, **g_ou, "market": goals_prices,
-                  "source": "market" if goals_prices else "default"},
-        "corners": {"line": corners_line, **periods.corners_at_line(c_mu, corners_line),
-                    "market": corners_prices,
-                    "source": "market" if corners_prices else "default"},
-    }
+
+    def _conf(p: float) -> str:
+        """How decisive the O/U lean is — honest about coin-flip fixtures."""
+        edge = abs(p - 0.5)
+        return "toss_up" if edge < 0.06 else ("lean" if edge < 0.15 else "clear")
+
+    goals_ou = {"line": goals_line, **g_ou, "market": goals_prices,
+                "source": "market" if goals_prices else "default",
+                "pick": "over" if g_ou["over"] >= 0.5 else "under",
+                "confidence": _conf(g_ou["over"])}
+    corners_ou = {"line": corners_line, **periods.corners_at_line(c_mu, corners_line),
+                  "market": corners_prices,
+                  "source": "market" if corners_prices else "default"}
+    corners_ou["pick"] = "over" if corners_ou["over"] >= 0.5 else "under"
+    corners_ou["confidence"] = _conf(corners_ou["over"])
+    pred["market_lines"] = {"goals": goals_ou, "corners": corners_ou}
     return pred
 
 
