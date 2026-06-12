@@ -319,6 +319,18 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "res.none": { vi: "Chưa có trận nào kết thúc.", en: "No finished matches yet." },
   "res.corners": { vi: "Phạt góc", en: "Corners" },
   "res.possession": { vi: "Kiểm soát bóng", en: "Possession" },
+  "res.stats": { vi: "Thông số trận đấu", en: "Match stats" },
+  "stat.possession": { vi: "Kiểm soát bóng", en: "Possession" },
+  "stat.shots_on": { vi: "Sút trúng đích", en: "Shots on target" },
+  "stat.shots_off": { vi: "Sút ra ngoài", en: "Shots off" },
+  "stat.shots_blocked": { vi: "Sút bị chặn", en: "Blocked" },
+  "stat.corners": { vi: "Phạt góc", en: "Corners" },
+  "stat.crosses": { vi: "Tạt cánh", en: "Crosses" },
+  "stat.fouls": { vi: "Phạm lỗi", en: "Fouls" },
+  "stat.offsides": { vi: "Việt vị", en: "Offsides" },
+  "stat.throw_ins": { vi: "Ném biên", en: "Throw-ins" },
+  "stat.yellows": { vi: "Thẻ vàng", en: "Yellow cards" },
+  "stat.reds": { vi: "Thẻ đỏ", en: "Red cards" },
 
   // Tournament accuracy (public)
   "acc.wc_heading": { vi: "⚽ World Cup 2026 — kiểm chứng trực tiếp", en: "⚽ World Cup 2026 — live verification" },

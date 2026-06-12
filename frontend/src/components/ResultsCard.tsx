@@ -59,14 +59,50 @@ function ResultRow({ r }: { r: ResultMatch }) {
               ))}
             </div>
           )}
-          <p className="mt-1.5 text-slate-400">
-            {r.corners?.home != null &&
-              `⛳ ${t("res.corners")}: ${r.home.tla} ${r.corners.home} – ${r.corners.away} ${r.away.tla}`}
-            {r.stats?.possession?.home != null &&
-              `  ·  ${t("res.possession")}: ${r.stats.possession.home}% – ${r.stats.possession.away}%`}
-          </p>
+          {r.stats && <StatBars stats={r.stats} home={r.home.tla} away={r.away.tla} />}
         </div>
       )}
+    </div>
+  );
+}
+
+const STAT_ORDER = ["possession", "shots_on", "shots_off", "shots_blocked",
+  "corners", "crosses", "fouls", "offsides", "throw_ins", "yellows", "reds"];
+
+export function StatBars({ stats, home, away }: {
+  stats: Record<string, { home: number | null; away: number | null }>;
+  home: string | null; away: string | null;
+}) {
+  const t = useT();
+  const rows = STAT_ORDER.filter(
+    (k) => stats[k] && stats[k].home != null && stats[k].away != null);
+  if (rows.length === 0) return null;
+  return (
+    <div className="mt-2 border-t border-slate-200/60 pt-2 dark:border-white/10">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        {t("res.stats")}
+      </p>
+      <div className="flex justify-between px-1 text-[10px] font-bold text-slate-400">
+        <span>{home}</span><span>{away}</span>
+      </div>
+      {rows.map((k) => {
+        const h = stats[k].home ?? 0, a = stats[k].away ?? 0;
+        const tot = h + a || 1;
+        const pct = k === "possession" ? h : Math.round((h / tot) * 100);
+        return (
+          <div key={k} className="my-0.5">
+            <div className="flex justify-between text-[11px] tabular-nums">
+              <span className="font-semibold">{h}{k === "possession" ? "%" : ""}</span>
+              <span className="text-slate-400">{t(`stat.${k}`)}</span>
+              <span className="font-semibold">{a}{k === "possession" ? "%" : ""}</span>
+            </div>
+            <div className="flex h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10">
+              <div className="bg-emerald-500" style={{ width: `${pct}%` }} />
+              <div className="bg-sky-500" style={{ width: `${100 - pct}%` }} />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

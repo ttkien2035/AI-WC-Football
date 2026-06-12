@@ -270,7 +270,8 @@ async def _exec_tool(name: str, args: dict) -> dict:
                             "side": i.get("side"), "card": i.get("type")}
                            for i in (r.get("incidents") or []) if i.get("type") in ("yellow", "red")],
                  "corners": r.get("corners"),
-                 "possession": (r.get("stats") or {}).get("possession")}
+                 "stats": {k: v for k, v in (r.get("stats") or {}).items()
+                           if k in ("possession", "shots_on", "fouls", "offsides")}}
                 for r in res]}
         if name == "get_match_prediction":
             h, a = _resolve2(args)

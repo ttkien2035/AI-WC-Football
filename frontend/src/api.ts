@@ -32,6 +32,7 @@ export type Match = {
   minute_source?: string;
   ht_score?: { home: number; away: number };
   corners?: { home: number | null; away: number | null };
+  stats?: Record<string, { home: number | null; away: number | null }>;
   red_cards?: { home: number; away: number };
   incidents?: Incident[];
   lineups?: { home?: LineupSide | null; away?: LineupSide | null };

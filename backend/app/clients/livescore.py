@@ -230,9 +230,14 @@ async def lineups(eid) -> dict | None:
 
 # Real shape (verified vs MEX-RSA opener FT): Stat = [{Tnb:1, Cos: corners,
 # Crs: crosses, Ycs/Rcs: cards, Pss: possession, Shon: shots on target, ...}]
-_STAT_FIELDS = {"corners": "Cos", "crosses": "Crs", "possession": "Pss",
-                "shots_on": "Shon", "yellows": "Ycs", "reds": "Rcs",
-                "fouls": "Fls", "offsides": "Ofs"}
+# Decoded from LiveScore statistics payload (verified vs KOR-CZE FT):
+#  Pss possession% · Shon shots-on · Shof shots-off · Shbl blocked
+#  Cos corners · Crs crosses · Fls fouls · Ofs offsides · Ths throw-ins
+#  Ycs yellow · Rcs red · YRcs second-yellow
+_STAT_FIELDS = {"possession": "Pss", "shots_on": "Shon", "shots_off": "Shof",
+                "shots_blocked": "Shbl", "corners": "Cos", "crosses": "Crs",
+                "fouls": "Fls", "offsides": "Ofs", "throw_ins": "Ths",
+                "yellows": "Ycs", "reds": "Rcs"}
 
 
 def _parse_stats(stats: dict) -> dict | None:

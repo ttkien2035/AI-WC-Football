@@ -7,7 +7,7 @@ import {
   api, type Match, type Prediction, type TimelinePoint, pct,
 } from "../api";
 import { Card, Flag, ProbBar } from "../components/ui";
-import ResultsCard from "../components/ResultsCard";
+import ResultsCard, { StatBars } from "../components/ResultsCard";
 import { useT } from "../i18n";
 
 const POLL_MS = 20_000;
@@ -173,10 +173,8 @@ function LiveMatch({ match }: { match: Match }) {
               ))}
             </div>
           )}
-          {match.corners && match.corners.home != null && (
-            <p className="mt-2 text-xs text-slate-400">
-              {t("live.corners")}: {match.home.tla} {match.corners.home} – {match.corners.away} {match.away.tla}
-            </p>
+          {match.stats && (
+            <StatBars stats={match.stats} home={match.home.tla} away={match.away.tla} />
           )}
         </Card>
       </div>
