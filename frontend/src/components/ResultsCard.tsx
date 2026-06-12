@@ -76,7 +76,10 @@ export function StatBars({ stats, home, away }: {
   const t = useT();
   const rows = STAT_ORDER.filter(
     (k) => stats[k] && stats[k].home != null && stats[k].away != null);
-  if (rows.length === 0) return null;
+  const hasXg = stats.xg && stats.xg.home != null && stats.xg.away != null;
+  if (rows.length === 0 && !hasXg) return null;
+  const fmt = (k: string, v: number) =>
+    k === "xg" ? v.toFixed(1) : `${v}${k === "possession" ? "%" : ""}`;
   return (
     <div className="mt-2 border-t border-slate-200/60 pt-2 dark:border-white/10">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -85,6 +88,19 @@ export function StatBars({ stats, home, away }: {
       <div className="flex justify-between px-1 text-[10px] font-bold text-slate-400">
         <span>{home}</span><span>{away}</span>
       </div>
+      {hasXg && (
+        <div className="my-1 rounded-md bg-emerald-50 px-1.5 py-1 dark:bg-emerald-950/30">
+          <div className="flex justify-between text-xs font-bold tabular-nums">
+            <span className="text-emerald-600 dark:text-emerald-400">{stats.xg.home!.toFixed(1)}</span>
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400">{t("stat.xg")}</span>
+            <span className="text-emerald-600 dark:text-emerald-400">{stats.xg.away!.toFixed(1)}</span>
+          </div>
+          <div className="mt-0.5 flex h-1.5 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10">
+            <div className="bg-emerald-500" style={{ width: `${(stats.xg.home! / ((stats.xg.home! + stats.xg.away!) || 1)) * 100}%` }} />
+            <div className="bg-sky-500 flex-1" />
+          </div>
+        </div>
+      )}
       {rows.map((k) => {
         const h = stats[k].home ?? 0, a = stats[k].away ?? 0;
         const tot = h + a || 1;
@@ -92,9 +108,9 @@ export function StatBars({ stats, home, away }: {
         return (
           <div key={k} className="my-0.5">
             <div className="flex justify-between text-[11px] tabular-nums">
-              <span className="font-semibold">{h}{k === "possession" ? "%" : ""}</span>
+              <span className="font-semibold">{fmt(k, h)}</span>
               <span className="text-slate-400">{t(`stat.${k}`)}</span>
-              <span className="font-semibold">{a}{k === "possession" ? "%" : ""}</span>
+              <span className="font-semibold">{fmt(k, a)}</span>
             </div>
             <div className="flex h-1 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/10">
               <div className="bg-emerald-500" style={{ width: `${pct}%` }} />

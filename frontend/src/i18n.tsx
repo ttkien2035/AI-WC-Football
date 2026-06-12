@@ -320,6 +320,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "res.corners": { vi: "Phạt góc", en: "Corners" },
   "res.possession": { vi: "Kiểm soát bóng", en: "Possession" },
   "res.stats": { vi: "Thông số trận đấu", en: "Match stats" },
+  "stat.xg": { vi: "xG (theo vị trí sút)", en: "xG (shot location)" },
   "stat.possession": { vi: "Kiểm soát bóng", en: "Possession" },
   "stat.shots_on": { vi: "Sút trúng đích", en: "Shots on target" },
   "stat.shots_off": { vi: "Sút ra ngoài", en: "Shots off" },

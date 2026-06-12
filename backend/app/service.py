@@ -79,7 +79,9 @@ async def get_matches(force: bool = False) -> list[dict]:
             if e.get("corners"):
                 m["corners"] = _flip(e["corners"])
             if e.get("stats"):
-                m["stats"] = {k: _flip(v) for k, v in e["stats"].items()}
+                # keep aggregated stats (incl. xg); drop bulky raw _shotmap
+                m["stats"] = {k: _flip(v) for k, v in e["stats"].items()
+                              if not k.startswith("_")}
             if e.get("red_cards"):
                 m["red_cards"] = _flip(e["red_cards"])
             if e.get("incidents"):

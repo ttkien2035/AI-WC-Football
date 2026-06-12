@@ -262,9 +262,35 @@ def _parse_stats(stats: dict) -> dict | None:
     return out or None
 
 
+def _parse_shotmap(data: dict) -> dict | None:
+    """shotsMap -> {home:[{x,y,st,player}], away:[...]} aggregated across
+    periods. Tnb 1=home, 2=away."""
+    sm = data.get("shotsMap")
+    if not isinstance(sm, dict):
+        return None
+    sides = {"home": [], "away": []}
+    for period in sm.values():
+        for block in (period if isinstance(period, list) else []):
+            side = "home" if str(block.get("Tnb")) == "1" else "away"
+            for sh in block.get("shots", []):
+                if "x" in sh and "y" in sh:
+                    sides[side].append({"x": sh["x"], "y": sh["y"],
+                                        "st": sh.get("ST"), "player": sh.get("Aid")})
+    return sides if (sides["home"] or sides["away"]) else None
+
+
 async def match_stats(eid) -> dict | None:
     data = await _get(f"statistics/soccer/{eid}", ttl=60)
-    return _parse_stats(data) if data else None
+    if not data:
+        return None
+    stats = _parse_stats(data) or {}
+    shots = _parse_shotmap(data)
+    if shots:
+        from ..engine.xg import team_xg
+        stats["xg"] = {"home": team_xg(shots["home"])["xg"],
+                       "away": team_xg(shots["away"])["xg"]}
+        stats["_shotmap"] = shots          # raw, for deeper views
+    return stats or None
 
 
 async def enrichment() -> dict[frozenset, dict]:
