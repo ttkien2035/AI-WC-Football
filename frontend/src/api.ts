@@ -199,7 +199,14 @@ export const api = {
 };
 
 export type Analytics = {
+  kpis: {
+    visitors: number; events: number; events_per_visitor: number;
+    active_today: number; active_yesterday: number;
+    returning: number; returning_pct: number;
+  };
   daily: { date: string; visitors: number; events: number }[];
+  hourly: { hour: number; n: number }[];
+  features: { feature: string; visitors: number }[];
   tabs: { tab: string; n: number }[];
   matchups: { pair: string; n: number }[];
   langs: { lang: string; n: number }[];

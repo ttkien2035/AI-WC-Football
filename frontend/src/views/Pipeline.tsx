@@ -179,9 +179,16 @@ function UsageCard({ usage }: { usage: Analytics }) {
       <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
         <BarChart3 size={14} /> {t("pl.usage")}
       </h3>
-      <p className="mb-3 text-xs text-slate-400">
-        {t("pl.usage_totals", { v: usage.totals.visitors, e: usage.totals.events })}
-      </p>
+      {/* KPI strip */}
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Kpi label={t("pl.k_visitors")} value={usage.kpis.visitors} />
+        <Kpi label={t("pl.k_active")} value={usage.kpis.active_today}
+          sub={t("pl.vs_yday", { n: usage.kpis.active_yesterday })}
+          trend={usage.kpis.active_today - usage.kpis.active_yesterday} />
+        <Kpi label={t("pl.k_engage")} value={usage.kpis.events_per_visitor} />
+        <Kpi label={t("pl.k_returning")} value={`${usage.kpis.returning_pct}%`}
+          sub={`${usage.kpis.returning}`} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div>
@@ -219,6 +226,42 @@ function UsageCard({ usage }: { usage: Analytics }) {
         </div>
       </div>
 
+      {/* hourly peak + feature reach */}
+      <div className="mt-3 grid gap-4 lg:grid-cols-2">
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.hourly")}</p>
+          <div style={{ height: 150 }}>
+            <ResponsiveContainer>
+              <BarChart data={usage.hourly.map((h) => ({
+                hour: `${((h.hour + new Date().getTimezoneOffset() / -60 + 24) % 24)}h`,
+                n: h.n }))} margin={{ left: -20, right: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
+                <XAxis dataKey="hour" stroke="#94a3b8" fontSize={9} interval={2} />
+                <YAxis stroke="#94a3b8" fontSize={9} allowDecimals={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Bar dataKey="n" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.features")}</p>
+          {usage.features.map((x) => {
+            const max = usage.features[0]?.visitors || 1;
+            return (
+              <div key={x.feature} className="mb-1 flex items-center gap-2 text-xs">
+                <span className="w-24 shrink-0">{t(`feat.${x.feature}`)}</span>
+                <div className="h-2.5 flex-1 overflow-hidden rounded bg-slate-200/80 dark:bg-white/[0.1]">
+                  <div className="h-full rounded bg-emerald-500"
+                       style={{ width: `${(x.visitors / max) * 100}%` }} />
+                </div>
+                <span className="w-8 text-right tabular-nums">{x.visitors}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="mt-3 grid gap-4 lg:grid-cols-2">
         <div>
           <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.top_tabs")}</p>
@@ -249,6 +292,25 @@ function UsageCard({ usage }: { usage: Analytics }) {
         </div>
       </div>
     </Card>
+  );
+}
+
+function Kpi({ label, value, sub, trend }: {
+  label: string; value: number | string; sub?: string; trend?: number;
+}) {
+  return (
+    <div className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
+      <p className="text-[10px] uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="flex items-baseline gap-1 text-xl font-bold tabular-nums">
+        {value}
+        {trend != null && trend !== 0 && (
+          <span className={`text-[11px] ${trend > 0 ? "text-emerald-500" : "text-red-400"}`}>
+            {trend > 0 ? "▲" : "▼"}{Math.abs(trend)}
+          </span>
+        )}
+      </p>
+      {sub && <p className="text-[10px] text-slate-400">{sub}</p>}
+    </div>
   );
 }
 
