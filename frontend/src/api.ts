@@ -275,6 +275,11 @@ export type MlStatus = {
   report: {
     test_metrics: Record<string, { rps: number; logloss: number; acc: number; n: number }>;
     weights: Record<string, number>;
+    scoreline?: {
+      poisson: { top1_hit: number; logloss: number };
+      dixon_coles: { top1_hit: number; logloss: number };
+    };
+    markets?: Record<string, Record<string, { brier: number; acc: number } | number>>;
   } | null;
   last_retrain: string | null;
   retraining_now: boolean;

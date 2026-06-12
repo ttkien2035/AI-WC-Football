@@ -40,5 +40,47 @@
    "acc": 0.6146,
    "n": 1313
   }
+ },
+ "scoreline": {
+  "poisson": {
+   "top1_hit": 0.1142,
+   "logloss": 2.9238
+  },
+  "dixon_coles": {
+   "top1_hit": 0.1158,
+   "logloss": 2.9226
+  }
+ },
+ "markets": {
+  "over25": {
+   "weight_head": 0.85,
+   "derived(matrix+tau)": {
+    "brier": 0.251,
+    "acc": 0.5156
+   },
+   "head(LR+XGB)": {
+    "brier": 0.2424,
+    "acc": 0.5659
+   },
+   "BLEND": {
+    "brier": 0.2415,
+    "acc": 0.5758
+   }
+  },
+  "btts": {
+   "weight_head": 0.8,
+   "derived(matrix+tau)": {
+    "brier": 0.2418,
+    "acc": 0.543
+   },
+   "head(LR+XGB)": {
+    "brier": 0.2397,
+    "acc": 0.5712
+   },
+   "BLEND": {
+    "brier": 0.2392,
+    "acc": 0.5765
+   }
+  }
  }
 }

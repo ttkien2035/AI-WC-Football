@@ -81,6 +81,8 @@ def _ko_round(rng, elo, h_idx, a_idx, pen_tilt: float = 0.4):
     """Winners of one knockout round. h_idx/a_idx: (n, m) team indices."""
     eh, ea = elo[h_idx], elo[a_idx]
     lam_h, lam_a = _lambdas(eh, ea)
+    lam_h = lam_h * settings.ko_goal_factor    # knockout caginess (fitted)
+    lam_a = lam_a * settings.ko_goal_factor
     gh = rng.poisson(lam_h)
     ga = rng.poisson(lam_a)
     we = 1.0 / (1.0 + 10 ** ((ea - eh) / 400.0))

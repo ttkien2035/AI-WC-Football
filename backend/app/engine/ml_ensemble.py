@@ -49,9 +49,14 @@ def _artifacts():
         rates = json.load(open(MODELS_DIR / "goal_rates.json"))
         state = json.load(open(MODELS_DIR / "team_state.json"))
         report = json.load(open(MODELS_DIR / "report.json"))
+        try:
+            markets = joblib.load(MODELS_DIR / "markets.joblib")
+        except Exception:
+            markets = None     # pre-sprint artifacts
         return {"lr": lr, "xgb": xgb, "calibs": calibs, "weights": ens["weights"],
                 "features": ens["features"], "rates": rates, "state": state,
-                "report": report}
+                "report": report, "markets": markets,
+                "market_weights": ens.get("market_weights", {})}
     except Exception as e:           # missing files, version mismatch, no xgboost
         log.warning("ML artifacts unavailable (%s) — falling back to heuristic", e)
         return None
@@ -59,6 +64,17 @@ def _artifacts():
 
 def available() -> bool:
     return _artifacts() is not None
+
+
+def dc_rho() -> float:
+    """Fitted Dixon-Coles low-score correlation (0.0 when artifacts missing)."""
+    a = _artifacts()
+    if a is None:
+        return 0.0
+    try:
+        return float(json.load(open(MODELS_DIR / "dc_params.json")).get("rho", 0.0))
+    except Exception:
+        return 0.0
 
 
 def report() -> dict | None:
@@ -167,6 +183,37 @@ def goal_lambdas(home_tla: str, away_tla: str, finished: tuple = (),
     lh = float(np.exp(r["a"] + r["b"] * ed / 100.0))
     la = float(np.exp(r["a"] - r["b"] * ed / 100.0))
     return max(lh, 0.15), max(la, 0.15)
+
+
+def predict_markets(home_tla: str, away_tla: str, finished: tuple = (),
+                    elo_adjust: tuple = (0.0, 0.0)) -> dict | None:
+    """Trained O/U 2.5 + BTTS head probabilities + their blend weights.
+    Returns {"over25": p, "btts": p, "weights": {...}} or None."""
+    a = _artifacts()
+    if a is None or not a.get("markets"):
+        return None
+    state = _updated_state(finished)
+    if home_tla not in state or away_tla not in state:
+        return None
+    sh = {**state[home_tla], "elo": state[home_tla]["elo"] + elo_adjust[0]}
+    sa = {**state[away_tla], "elo": state[away_tla]["elo"] + elo_adjust[1]}
+    neutral = home_tla not in HOST_TLAS
+    adv = 0.0 if neutral else ELO_HOME_ADV
+    # MARKET_FEATURES order: elo_sum, elo_diff, gf5_sum, ga5_sum,
+    #                        gf5_min, ga5_max, neutral, importance
+    X = np.array([[
+        sh["elo"] + sa["elo"],
+        sh["elo"] + adv - sa["elo"],
+        sh["gf5"] + sa["gf5"], sh["ga5"] + sa["ga5"],
+        min(sh["gf5"], sa["gf5"]), max(sh["ga5"], sa["ga5"]),
+        int(neutral), IMPORTANCE_WC,
+    ]])
+    out = {"weights": a["market_weights"]}
+    for target, head in a["markets"].items():
+        plr = head["lr"].predict_proba(X)[:, 1]
+        pxgb = head["iso"].predict(head["xgb"].predict_proba(X)[:, 1])
+        out[target] = float(np.clip(0.5 * plr + 0.5 * pxgb, 1e-4, 1 - 1e-4)[0])
+    return out
 
 
 def predict_matrix(X: np.ndarray) -> np.ndarray | None:

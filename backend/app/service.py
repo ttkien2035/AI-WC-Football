@@ -388,10 +388,22 @@ async def predict(home: str, away: str, minute: int | None = None,
         minute=minute, goals_h=hg, goals_a=ag,
         ml_probs=ml_probs, lam_override=lam_override,
         red_cards=red_cards,
+        stage=stage, rho=ml_ensemble.dc_rho(),
     )
     if pen_h or pen_a:
         pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
                                    "away": {"elo": -pen_a, "players": kp_a}}
+
+    # ---- trained O/U & BTTS heads blended with the (tau) matrix values ----
+    if minute is None:           # pre-match only; in-play stays score-conditioned
+        mk = ml_ensemble.predict_markets(home, away, finished, elo_adjust=elo_adjust)
+        if mk:
+            w_o = mk["weights"].get("over25", 0.8)
+            w_b = mk["weights"].get("btts", 0.8)
+            pred["over25"] = round(w_o * mk["over25"] + (1 - w_o) * pred["over25"], 4)
+            pred["btts"] = round(w_b * mk["btts"] + (1 - w_b) * pred["btts"], 4)
+            pred["components"]["markets_head"] = {
+                "over25": round(mk["over25"], 4), "btts": round(mk["btts"], 4)}
 
     # ---- period-level extensions ----
     lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]
@@ -401,7 +413,8 @@ async def predict(home: str, away: str, minute: int | None = None,
     pred["corners"] = periods.corners(
         lam_h, lam_a, eh, ea,
         team_rates=(corner_rates(home), corner_rates(away)),
-        minute=minute, corners_so_far=corners_now)
+        minute=minute, corners_so_far=corners_now,
+        score_diff=abs(hg - ag) if minute is not None else 0)
     pred["stage"] = stage
     pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
     pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
@@ -438,7 +451,8 @@ async def odds_board(limit: int = 24) -> dict:
         if probs is None:
             eh = match_model.effective_elo(h, teams[h]["elo"])
             ea = match_model.effective_elo(a, teams[a]["elo"])
-            mtx = match_model.score_matrix(*match_model.lambdas_from_elo(eh, ea))
+            mtx = match_model.score_matrix(*match_model.lambdas_from_elo(eh, ea),
+                                           rho=ml_ensemble.dc_rho())
             o = match_model.matrix_outcomes(mtx)
             probs = {k: o[k] for k in ("home", "draw", "away")}
         lam = ml_ensemble.goal_lambdas(h, a, finished)
@@ -446,7 +460,7 @@ async def odds_board(limit: int = 24) -> dict:
             eh = match_model.effective_elo(h, teams[h]["elo"])
             ea = match_model.effective_elo(a, teams[a]["elo"])
             lam = match_model.lambdas_from_elo(eh, ea)
-        o = match_model.matrix_outcomes(match_model.score_matrix(*lam))
+        o = match_model.matrix_outcomes(match_model.score_matrix(*lam, rho=ml_ensemble.dc_rho()))
         cor = periods.corners(lam[0], lam[1],
                               teams[h]["elo"], teams[a]["elo"],
                               team_rates=(corner_rates(h), corner_rates(a)))

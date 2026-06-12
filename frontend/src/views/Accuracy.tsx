@@ -108,6 +108,46 @@ export default function Accuracy() {
             </table>
           </>
         )}
+        {status?.report?.scoreline && status?.report?.markets && (
+          <div className="mt-4">
+            <p className="mb-2 text-sm font-medium">{t("acc.targets")}</p>
+            <table className="w-full max-w-xl text-sm tabular-nums">
+              <thead>
+                <tr className="text-left text-[11px] uppercase text-slate-400">
+                  <th className="py-1">{t("acc.t_target")}</th>
+                  <th>{t("acc.t_base")}</th>
+                  <th>{t("acc.t_model")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-t border-slate-100 dark:border-white/10">
+                  <td className="py-1">{t("acc.t_score")}</td>
+                  <td>{(status.report.scoreline.poisson.top1_hit * 100).toFixed(2)}%</td>
+                  <td className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {(status.report.scoreline.dixon_coles.top1_hit * 100).toFixed(2)}%
+                  </td>
+                </tr>
+                {(["over25", "btts"] as const).map((k) => {
+                  const m = status.report!.markets![k] as any;
+                  if (!m) return null;
+                  return (
+                    <tr key={k} className="border-t border-slate-100 dark:border-white/10">
+                      <td className="py-1">{t(k === "over25" ? "acc.t_ou" : "acc.t_btts")}</td>
+                      <td>{(m["derived(matrix+tau)"].acc * 100).toFixed(1)}%</td>
+                      <td className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {(m["BLEND"].acc * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr className="border-t border-slate-100 dark:border-white/10">
+                  <td className="py-1">{t("acc.t_corners")}</td>
+                  <td colSpan={2} className="text-xs text-slate-400">{t("acc.t_corners_note")}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
         {status && (
           <p className="mt-2 text-xs text-slate-400">
             {t("acc.last_retrain", {

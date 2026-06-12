@@ -51,15 +51,25 @@ def attack_defence_lambda(home: dict, away: dict, lg_avg_per_team: float) -> tup
     return max(0.15, lam_h), max(0.15, lam_a)
 
 
-def score_matrix(lam_h: float, lam_a: float, max_g: int | None = None) -> np.ndarray:
+def score_matrix(lam_h: float, lam_a: float, max_g: int | None = None,
+                 rho: float = 0.0) -> np.ndarray:
     """(max_g+1, max_g+1) matrix of P(home=h, away=a), renormalized so the
-    truncated tail doesn't leak probability."""
+    truncated tail doesn't leak probability.
+
+    rho != 0 applies the Dixon-Coles tau correction to the four low-score
+    cells (0-0, 1-0, 0-1, 1-1) — independent Poisson systematically
+    underestimates low-scoring draws; rho is fitted in ml/train.py."""
     max_g = max_g or settings.max_goals
     ks = np.arange(max_g + 1)
     log_fact = np.cumsum(np.log(np.maximum(ks, 1)))
     ph = np.exp(-lam_h + ks * math.log(lam_h) - log_fact)
     pa = np.exp(-lam_a + ks * math.log(lam_a) - log_fact)
     m = np.outer(ph, pa)
+    if rho:
+        m[0, 0] *= max(1 - lam_h * lam_a * rho, 1e-9)
+        m[0, 1] *= max(1 + lam_h * rho, 1e-9)
+        m[1, 0] *= max(1 + lam_a * rho, 1e-9)
+        m[1, 1] *= max(1 - rho, 1e-9)
     return m / m.sum()
 
 
@@ -101,6 +111,8 @@ def predict_match(
     ml_probs: dict | None = None,      # trained ensemble W/D/L (engine/ml_ensemble)
     lam_override: tuple[float, float] | None = None,  # fitted goal rates
     red_cards: tuple[int, int] = (0, 0),  # sent-off counts (home, away), in-play
+    stage: str | None = None,             # GROUP_STAGE / LAST_32 / ... (KO caginess)
+    rho: float = 0.0,                     # Dixon-Coles low-score correction
 ) -> dict:
     eh = effective_elo(home_tla, elo_h)
     ea = effective_elo(away_tla, elo_a)
@@ -114,6 +126,11 @@ def predict_match(
         w_ad = played / (played + 3.0)          # 3 games -> 50/50 with Elo
         lam_h = (1 - w_ad) * lam_h + w_ad * ad[0]
         lam_a = (1 - w_ad) * lam_a + w_ad * ad[1]
+
+    # knockout caginess: per-90 goal rate drops vs group stage (fitted 0.955)
+    if stage and stage != "GROUP_STAGE":
+        lam_h *= settings.ko_goal_factor
+        lam_a *= settings.ko_goal_factor
 
     in_play = minute is not None
     if in_play:
@@ -139,7 +156,7 @@ def predict_match(
         }
         scorelines = top_scorelines(m, shift=shift)
     else:
-        m = score_matrix(lam_h, lam_a)
+        m = score_matrix(lam_h, lam_a, rho=rho)
         poisson_probs = matrix_outcomes(m)
         scorelines = top_scorelines(m)
         shift = (0, 0)

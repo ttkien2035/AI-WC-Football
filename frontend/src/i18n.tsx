@@ -134,6 +134,15 @@ const DICT: Record<string, { vi: string; en: string }> = {
     en: "Each match is predicted using only information available BEFORE kickoff (as-of features) — no future leakage. Models retrain automatically nightly; ratings update online after every WC match.",
   },
   "acc.last_retrain": { vi: "Retrain gần nhất: {d} · online updates đã áp dụng: {n} trận", en: "Last retrain: {d} · online updates applied: {n} matches" },
+  "acc.targets": { vi: "Độ chính xác theo mục tiêu dự đoán (test 2025–26)", en: "Accuracy by prediction target (2025–26 test)" },
+  "acc.t_target": { vi: "Mục tiêu", en: "Target" },
+  "acc.t_base": { vi: "Baseline", en: "Baseline" },
+  "acc.t_model": { vi: "Model mới", en: "New model" },
+  "acc.t_score": { vi: "Tỉ số chính xác (top-1)", en: "Exact score (top-1)" },
+  "acc.t_ou": { vi: "Tài/Xỉu 2.5", en: "Over/Under 2.5" },
+  "acc.t_btts": { vi: "2 đội ghi bàn", en: "BTTS" },
+  "acc.t_corners": { vi: "Phạt góc O/U", en: "Corners O/U" },
+  "acc.t_corners_note": { vi: "Phân phối NB (var/mean 1.96, fit 9k trận CLB) — nhiễu chi phối, tự calibrate theo giải", en: "NB distribution (var/mean 1.96, fitted on 9k club matches) — variance-dominated, self-calibrates in-tournament" },
   "acc.never": { vi: "chưa (artifacts từ lần train đầu)", en: "not yet (initial training artifacts)" },
 
   // Live tab

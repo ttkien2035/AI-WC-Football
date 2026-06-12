@@ -26,6 +26,15 @@ Trained on **49,405 international matches (1872–2026)** with chronologically-c
 
 Final pre-match blend: market odds (de-vigged) 40% / ML ensemble 40% / Poisson 15% / form 5%.
 
+**Per-target models** (research-driven, all backtested on held-out 2025–26):
+
+| Target | Baseline | New model | Method |
+|---|---|---|---|
+| Exact score (top-1) | 11.42% | **11.58%** | Dixon-Coles tau (fitted ρ=−0.06) + knockout caginess ×0.955 (fitted on WC 1986–2022, per-90) |
+| Over/Under 2.5 | 51.6% | **57.6%** (Brier 0.2510→0.2415) | dedicated LR+XGB head (tempo/attack/defence features) blended 0.85/0.15 with the tau matrix |
+| BTTS | 54.3% | **57.7%** (Brier 0.2418→0.2392) | dedicated head (min-attack/max-defence features), blend 0.8/0.2 |
+| Corners O/U | Poisson | **Negative binomial** (var/mean 1.96, fitted on 9k club matches) | supervised study showed pre-match corner totals are variance-dominated — correct distribution + in-tournament team rates + late-game trailing-side bump |
+
 ### 🔁 Self-improving all tournament long
 - **Online updates**: Elo + pi-ratings + form recomputed after every finished WC match
 - **Nightly auto-retrain** (03:00 UTC, never during a live match) on the refreshed dataset; old artifacts kept if training fails

@@ -103,9 +103,15 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
             "form5_diff": ph5 - pa5,
             "gf5_diff": gf5h - gf5a,
             "ga5_diff": ga5h - ga5a,
+            # goal-market features (O/U & BTTS heads): tempo + attack/defence levels
+            "elo_sum": eh + ea,
+            "gf5_sum": gf5h + gf5a, "ga5_sum": ga5h + ga5a,
+            "gf5_min": min(gf5h, gf5a), "ga5_max": max(ga5h, ga5a),
             "neutral": int(r.neutral), "importance": importance(r.tournament),
             "gh": r.home_score, "ga": r.away_score,
             "outcome": 0 if r.home_score > r.away_score else (1 if r.home_score == r.away_score else 2),
+            "over25": int(r.home_score + r.away_score > 2),
+            "btts": int(r.home_score > 0 and r.away_score > 0),
         })
 
         # ---- updates (post-match) ----
@@ -142,6 +148,10 @@ def build_features(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
 
 
 FEATURES = ["elo_diff", "pi_diff", "form5_diff", "gf5_diff", "ga5_diff", "neutral", "importance"]
+# O/U & BTTS heads (research: tempo=elo_sum, attack/defence levels, weakest
+# attack & strongest defence drive BTTS, stage importance drives caginess)
+MARKET_FEATURES = ["elo_sum", "elo_diff", "gf5_sum", "ga5_sum",
+                   "gf5_min", "ga5_max", "neutral", "importance"]
 
 # dataset team names for the 48 WC TLAs (only where name differs from static_data)
 DATASET_NAMES = {

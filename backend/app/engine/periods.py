@@ -96,10 +96,29 @@ def _pois_cdf(lam: float, k: int) -> float:
     return math.fsum(math.exp(-lam) * lam ** i / math.factorial(i) for i in range(k + 1))
 
 
+def _nb_cdf(mu: float, k: int, ratio: float | None = None) -> float:
+    """Negative-binomial CDF with variance = ratio * mean. Corners are ~2x
+    overdispersed vs Poisson (fitted on 9k club matches) — plain Poisson is
+    overconfident on O/U lines."""
+    ratio = ratio or settings.corners_dispersion
+    if ratio <= 1.0 or mu <= 0:
+        return _pois_cdf(max(mu, 1e-6), k)
+    r = mu / (ratio - 1.0)
+    p = r / (r + mu)
+    # CDF via the regularized incomplete beta; iterate pmf for small k instead
+    total, pmf = 0.0, p ** r
+    for i in range(k + 1):
+        if i > 0:
+            pmf *= (r + i - 1) / i * (1 - p)
+        total += pmf
+    return min(total, 1.0)
+
+
 def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
             team_rates: tuple[dict | None, dict | None] = (None, None),
             minute: int | None = None,
-            corners_so_far: dict | None = None) -> dict:
+            corners_so_far: dict | None = None,
+            score_diff: int = 0) -> dict:
     """Poisson corners model. Total scales with attack intensity; home share
     follows an Elo-based dominance proxy; per-half split from config.
     team_rates: in-tournament per-team averages (LiveScore) blended in."""
@@ -130,18 +149,22 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
                       "away_games": (team_rates[1] or {}).get("games", 0)},
     }
     for line in (3.5, 4.5):
-        res["over"][f"h1_{line}"] = round(1 - _pois_cdf(total * s1, int(line)), 4)
+        res["over"][f"h1_{line}"] = round(1 - _nb_cdf(total * s1, int(line)), 4)
     for line in (8.5, 9.5, 10.5):
-        res["over"][f"ft_{line}"] = round(1 - _pois_cdf(total, int(line)), 4)
+        res["over"][f"ft_{line}"] = round(1 - _nb_cdf(total, int(line)), 4)
 
     if minute is not None and corners_so_far:
         rem = max(90 - minute, 0) / 90.0
         so_far = (corners_so_far.get("home") or 0) + (corners_so_far.get("away") or 0)
         exp_rem = total * rem
+        # game state (WC-2006 match-status research): trailing side pushes
+        # late -> corner rate rises in the final phase
+        if minute >= 70 and score_diff:
+            exp_rem *= 1.10
         res["in_play"] = {
             "so_far": corners_so_far, "expected_remaining": round(exp_rem, 2),
             "projected_total": round(so_far + exp_rem, 2),
-            "over_ft": {str(l): round(1 - _pois_cdf(exp_rem, max(int(l) - so_far, -1)), 4)
+            "over_ft": {str(l): round(1 - _nb_cdf(exp_rem, max(int(l) - so_far, -1)), 4)
                         for l in (8.5, 9.5, 10.5)},
         }
     return res

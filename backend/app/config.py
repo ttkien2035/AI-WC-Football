@@ -70,9 +70,13 @@ class Settings(BaseSettings):
     ml_only_w_elo: float = 0.10
     ml_only_w_form: float = 0.05
 
+    # Score-model corrections (fitted from 49k-match history)
+    ko_goal_factor: float = 0.955   # knockout caginess, per-90 (WC 1986-2022)
+
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
-    corners_base: float = 9.7        # international avg total corners
+    corners_base: float = 9.67       # fitted: 9k club matches (validated vs intl avg)
+    corners_dispersion: float = 1.96 # NB var/mean — corners are ~2x overdispersed
     corners_h1_share: float = 0.46
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4

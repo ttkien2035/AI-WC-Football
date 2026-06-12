@@ -13,7 +13,8 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from .data import (DATASET_NAMES, FEATURES, build_features, load_results)
+from .data import (DATASET_NAMES, FEATURES, MARKET_FEATURES,
+                   build_features, load_results)
 from . import models as M
 
 OUT = Path(__file__).resolve().parents[1] / "app" / "data" / "models"
@@ -104,6 +105,44 @@ def main() -> None:
                                       "acc": round(acc, 4), "n": int(ok.sum())}
         print(f"{nm:<22} {r:>8.4f} {ll:>9.4f} {acc:>9.3f}")
 
+    # ---- per-target: scoreline / O-U / BTTS ------------------------------
+    rho = dc["rho"]
+    print("\n── Scoreline (exact score) — test 2025+ ──")
+    sm_no = M.scoreline_metrics(test, rates, rho=0.0)
+    sm_tau = M.scoreline_metrics(test, rates, rho=rho)
+    print(f"  independent Poisson : top1 {sm_no['top1_hit']*100:5.2f}%  logloss {sm_no['logloss']}")
+    print(f"  + Dixon-Coles tau   : top1 {sm_tau['top1_hit']*100:5.2f}%  logloss {sm_tau['logloss']}")
+
+    print("\n── O/U 2.5 & BTTS heads ──")
+    heads, market_weights, market_report = {}, {}, {}
+    der_val = dict(zip(("over25", "btts"), M.derived_market_probs(valid, rates, rho)))
+    der_test = dict(zip(("over25", "btts"), M.derived_market_probs(test, rates, rho)))
+    for target in ("over25", "btts"):
+        heads[target] = M.fit_market_head(train, valid, target)
+        pv_head = M.predict_market_head(heads[target], valid[MARKET_FEATURES])
+        yv = valid[target].to_numpy()
+        best_w, best_ll = 0.0, np.inf
+        for w in np.arange(0, 1.01, 0.05):
+            p = w * pv_head + (1 - w) * der_val[target]
+            ll = -np.mean(yv * np.log(p) + (1 - yv) * np.log(1 - p))
+            if ll < best_ll:
+                best_ll, best_w = ll, round(float(w), 2)
+        market_weights[target] = best_w
+        # test evaluation
+        yt = test[target].to_numpy()
+        pt_head = M.predict_market_head(heads[target], test[MARKET_FEATURES])
+        pt_blend = best_w * pt_head + (1 - best_w) * der_test[target]
+        rep = {}
+        for nm, p in (("derived(matrix+tau)", der_test[target]),
+                      ("head(LR+XGB)", pt_head), ("BLEND", pt_blend)):
+            acc = float(((p > 0.5) == yt).mean())
+            rep[nm] = {"brier": round(M.brier(p, yt), 4), "acc": round(acc, 4)}
+            print(f"  {target:<7} {nm:<20} Brier {rep[nm]['brier']:.4f}  acc {acc*100:5.2f}%")
+        market_report[target] = {"weight_head": best_w, **rep}
+        print(f"  {target:<7} blend weight (head) = {best_w}")
+    report["scoreline"] = {"poisson": sm_no, "dixon_coles": sm_tau}
+    report["markets"] = market_report
+
     # ---- export ----
     OUT.mkdir(parents=True, exist_ok=True)
     # DC params restricted to teams seen (small file: only ~250 teams anyway)
@@ -112,7 +151,11 @@ def main() -> None:
     xgb.save_model(OUT / "xgb.json")
     joblib.dump(calibs, OUT / "xgb_calib.joblib")
     json.dump(rates, open(OUT / "goal_rates.json", "w"))
-    json.dump({"weights": weights, "features": FEATURES}, open(OUT / "ensemble.json", "w"))
+    joblib.dump(heads, OUT / "markets.joblib")
+    json.dump({"weights": weights, "features": FEATURES,
+               "market_features": MARKET_FEATURES,
+               "market_weights": market_weights},
+              open(OUT / "ensemble.json", "w"))
     # serving state for the 48 WC teams, keyed by TLA
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

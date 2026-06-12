@@ -15,7 +15,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.isotonic import IsotonicRegression
 from xgboost import XGBClassifier
 
-from .data import FEATURES
+from .data import FEATURES, MARKET_FEATURES
 
 MAX_G = 8
 XI = 0.0019          # DC time decay per day
@@ -186,6 +186,82 @@ def rates_lambdas(coefs: dict, elo_diff: float) -> tuple[float, float]:
     lh = float(np.exp(coefs["a"] + coefs["b"] * elo_diff / 100.0))
     la = float(np.exp(coefs["a"] - coefs["b"] * elo_diff / 100.0))
     return max(lh, 0.1), max(la, 0.1)
+
+
+# ────────────────────────── market heads (O/U 2.5, BTTS) ──────────────
+def brier(p: np.ndarray, y: np.ndarray) -> float:
+    return float(np.mean((p - y) ** 2))
+
+
+def fit_market_head(train: pd.DataFrame, valid: pd.DataFrame, target: str) -> dict:
+    """Binary head = LR + isotonic-calibrated XGB, blended 50/50."""
+    lr = make_pipeline(StandardScaler(), LogisticRegression(C=1.0, max_iter=2000))
+    lr.fit(train[MARKET_FEATURES], train[target])
+    xgb = XGBClassifier(
+        objective="binary:logistic", tree_method="hist",
+        n_estimators=600, learning_rate=0.05, max_depth=4,
+        subsample=0.8, colsample_bytree=0.8, reg_lambda=2.0,
+        early_stopping_rounds=50, eval_metric="logloss")
+    xgb.fit(train[MARKET_FEATURES], train[target],
+            eval_set=[(valid[MARKET_FEATURES], valid[target])], verbose=False)
+    iso = IsotonicRegression(out_of_bounds="clip", y_min=1e-4, y_max=1 - 1e-4)
+    iso.fit(xgb.predict_proba(valid[MARKET_FEATURES])[:, 1], valid[target])
+    return {"lr": lr, "xgb": xgb, "iso": iso}
+
+
+def predict_market_head(head: dict, X: pd.DataFrame | np.ndarray) -> np.ndarray:
+    plr = head["lr"].predict_proba(X)[:, 1]
+    pxgb = head["iso"].predict(head["xgb"].predict_proba(X)[:, 1])
+    return np.clip(0.5 * plr + 0.5 * pxgb, 1e-4, 1 - 1e-4)
+
+
+def derived_market_probs(df: pd.DataFrame, rates: dict, rho: float,
+                         max_g: int = 8) -> tuple[np.ndarray, np.ndarray]:
+    """O/U 2.5 + BTTS derived from the M4-lambda Dixon-Coles matrix —
+    the serving-path baseline the heads must beat/blend with."""
+    ks = np.arange(max_g + 1)
+    fact = np.cumprod(np.concatenate([[1.0], np.maximum(ks[1:], 1)]))
+    over, btts_p = np.empty(len(df)), np.empty(len(df))
+    for i, ed in enumerate(df["elo_diff"].to_numpy()):
+        lh, la = rates_lambdas(rates, ed)
+        ph = np.exp(-lh) * lh ** ks / fact
+        pa = np.exp(-la) * la ** ks / fact
+        m = np.outer(ph, pa)
+        if rho:
+            m[0, 0] *= max(1 - lh * la * rho, 1e-9)
+            m[0, 1] *= max(1 + lh * rho, 1e-9)
+            m[1, 0] *= max(1 + la * rho, 1e-9)
+            m[1, 1] *= max(1 - rho, 1e-9)
+        m /= m.sum()
+        hi, ai = np.indices(m.shape)
+        over[i] = m[hi + ai > 2].sum()
+        btts_p[i] = m[1:, 1:].sum()
+    return over, btts_p
+
+
+def scoreline_metrics(df: pd.DataFrame, rates: dict, rho: float,
+                      max_g: int = 8) -> dict:
+    """Top-1 exact-score hit rate + log-loss of the actual scoreline."""
+    ks = np.arange(max_g + 1)
+    fact = np.cumprod(np.concatenate([[1.0], np.maximum(ks[1:], 1)]))
+    hits, ll = 0, 0.0
+    for r in df.itertuples(index=False):
+        lh, la = rates_lambdas(rates, r.elo_diff)
+        ph = np.exp(-lh) * lh ** ks / fact
+        pa = np.exp(-la) * la ** ks / fact
+        m = np.outer(ph, pa)
+        if rho:
+            m[0, 0] *= max(1 - lh * la * rho, 1e-9)
+            m[0, 1] *= max(1 + lh * rho, 1e-9)
+            m[1, 0] *= max(1 + la * rho, 1e-9)
+            m[1, 1] *= max(1 - rho, 1e-9)
+        m /= m.sum()
+        top = np.unravel_index(m.argmax(), m.shape)
+        gh, ga = min(int(r.gh), max_g), min(int(r.ga), max_g)
+        hits += (top == (gh, ga))
+        ll += -np.log(max(m[gh, ga], 1e-12))
+    n = len(df)
+    return {"top1_hit": round(hits / n, 4), "logloss": round(ll / n, 4)}
 
 
 # ────────────────────────── ensemble weights ──────────────────────────
