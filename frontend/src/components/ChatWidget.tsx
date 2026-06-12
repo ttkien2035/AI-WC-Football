@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Loader2, Send, Sparkles, X, Zap } from "lucide-react";
+import { Loader2, MessageSquare, Send, Sparkles, X } from "lucide-react";
 import { api } from "../api";
 import { useLang, useT } from "../i18n";
 import { getVisitorId } from "../visitor";
@@ -235,12 +235,12 @@ export default function ChatWidget() {
               <span className="flex items-center gap-1.5 text-sm font-bold">
                 ⚽ {t("chat.title")} <Sparkles size={14} className="text-amber-300" />
               </span>
-              <span className="flex items-center gap-0.5" title={`${remaining ?? "?"}/${limit}`}>
-                {[...Array(limit)].map((_, i) => (
-                  <Zap key={i} size={limit > 6 ? 10 : 13}
-                    className={i < (remaining ?? 0) ? "text-amber-300" : "text-white/25"}
-                    fill={i < (remaining ?? 0) ? "currentColor" : "none"} />
-                ))}
+              <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums"
+                    title={`${remaining ?? "?"}/${limit}`}>
+                <MessageSquare size={12} className="text-amber-300" />
+                <span className={(remaining ?? 0) > 0 ? "text-white" : "text-white/50"}>
+                  {remaining ?? "?"}
+                </span>
               </span>
             </div>
 
