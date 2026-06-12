@@ -5,4 +5,4 @@ services:
       - "8000:8000"     # direct API access for development
   frontend:
     ports:
-      - "8080:80"
+      - "8081:80"     # 8080 may be taken by other local projects; prod uses :80
