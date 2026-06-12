@@ -161,7 +161,8 @@ export default function ChatWidget() {
     ? [
         t("chat.chip_next"),
         todayMatch && t("chat.chip_deep", { m: todayMatch }),
-        todayMatch && t("chat.chip_lineup", { m: todayMatch }),
+        t("chat.chip_format"),
+        t("chat.chip_news"),
         t("chat.chip_value"),
         t("chat.chip_title"),
       ].filter(Boolean) as string[]

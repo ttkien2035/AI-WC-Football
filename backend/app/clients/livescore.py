@@ -279,6 +279,13 @@ def _parse_shotmap(data: dict) -> dict | None:
     return sides if (sides["home"] or sides["away"]) else None
 
 
+async def match_venue(eid) -> str | None:
+    """Stadium name from the scoreboard (static per match) — cached 7 days."""
+    data = await _get(f"scoreboard/soccer/{eid}", ttl=7 * 86_400)
+    v = (data or {}).get("Venue") or {}
+    return v.get("Vnm")
+
+
 async def match_stats(eid) -> dict | None:
     data = await _get(f"statistics/soccer/{eid}", ttl=60)
     if not data:
@@ -299,6 +306,7 @@ async def enrichment() -> dict[frozenset, dict]:
     out = {}
     for ev in await wc_events_today():
         entry = dict(ev)
+        entry["venue"] = await match_venue(ev["eid"])   # cached 7d, static
         if ev["live"] or ev["finished"]:
             stats = await match_stats(ev["eid"])
             entry["stats"] = stats

@@ -80,6 +80,7 @@ export type Prediction = {
       lockdown_underdog?: string | null;
       notes: { key: string; params: Record<string, string | number> }[];
     };
+    venue?: { factor: number; venue: { stadium: string; city: string; alt: number; roof: boolean } | null };
   };
   over25: number; btts: number;
   scorelines: { home: number; away: number; p: number }[];

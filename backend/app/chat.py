@@ -197,6 +197,15 @@ TOOL_DECLS = [
          "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách"),
          "home_goals": {"type": "integer"}, "away_goals": {"type": "integer"}},
          "required": ["home", "away", "home_goals", "away_goals"]}},
+    {"name": "get_wc_info",
+     "description": "Authoritative World Cup 2026 facts: format/rules, how the 8 best third-placed teams qualify, group tiebreakers, knockout/extra-time/penalty rules, host countries, venues & stadiums (city, capacity, altitude, roof), key dates, the final, opening match. Use for 'thể thức', 'luật', 'sân nào', 'chủ nhà', 'khi nào' — prefer this over a web search.",
+     "parameters": {"type": "object", "properties": {
+         "topic": {"type": "string", "description": "what to look up, e.g. 'format', 'venues', 'third place', 'tiebreakers', 'final'"}},
+         "required": ["topic"]}},
+    {"name": "get_wc_news",
+     "description": "Latest World Cup 2026 news from the web (injuries, lineups, results, talking points). Grounded with sources. Use for 'tin mới nhất', 'có gì mới', tournament news.",
+     "parameters": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "optional focus, e.g. a team or player"}}}},
     {"name": "search_football_news",
      "description": "Search the web (Google) for anything football the internal tools don't cover: news, injuries, transfers, football history, legendary players, other leagues/tournaments, stadiums, schedules. Prefer this over refusing or guessing.",
      "parameters": {"type": "object", "properties": {
@@ -215,6 +224,8 @@ TOOL_LABELS = {
     "get_h2h_record": ("Tra lịch sử đối đầu", "Checking head-to-head"),
     "get_market_odds": ("So kèo thị trường vs model", "Comparing market vs model odds"),
     "what_if": ("Mô phỏng kịch bản giả định (20k sims)", "Simulating what-if scenario (20k sims)"),
+    "get_wc_info": ("Tra thông tin World Cup 2026", "Looking up World Cup 2026 info"),
+    "get_wc_news": ("Tin nóng World Cup 2026", "Fetching World Cup 2026 news"),
     "search_football_news": ("Search tin tức bóng đá", "Searching football news"),
 }
 
@@ -288,6 +299,8 @@ async def _exec_tool(name: str, args: dict) -> dict:
                                  ("p_extra_time", "p_penalties", "advance")} if p.get("knockout") else None,
                     "key_absences": p.get("absence_penalty"),
                     "context": p["components"].get("context"),
+                    "venue": p["components"].get("venue"),
+                    "ou_lines": p.get("market_lines"),     # line + over% + pick + confidence
                     "scenarios": (p.get("simulation") or {}).get("scenarios"),
                     "elo": p["elo"]}
         if name == "get_team_overview":
@@ -335,6 +348,12 @@ async def _exec_tool(name: str, args: dict) -> dict:
             h, a = _resolve2(args)
             return await service.simulate_what_if(
                 h, a, int(args["home_goals"]), int(args["away_goals"]))
+        if name == "get_wc_info":
+            from . import wc_kb
+            return wc_kb.lookup(args.get("topic", ""))
+        if name == "get_wc_news":
+            q = args.get("query", "")
+            return await _news(f"FIFA World Cup 2026 latest news {q}".strip())
         if name == "search_football_news":
             return await _news(args.get("query", ""))
         return {"error": f"unknown tool {name}"}
@@ -368,7 +387,8 @@ async def _news(query: str) -> dict:
                     f"{GEMINI}/{settings.chat_model}:generateContent",
                     headers={"x-goog-api-key": key},
                     json={"contents": [{"parts": [{"text":
-                          f"Summarize in <=120 words the latest football news about: {query}"}]}],
+                          f"Summarize in <=120 words the most recent football news about: {query}. "
+                          "Prioritize FIFA World Cup 2026 (June-July 2026) when relevant."}]}],
                           "tools": [{"google_search": {}}],
                           "generationConfig": {"maxOutputTokens": 256,
                                                "thinkingConfig": {"thinkingBudget": 0}}})
@@ -418,8 +438,9 @@ def _system(lang: str) -> str:
 RULES:
 - Use the provided tools for EVERY app-model number you cite (probabilities, odds, Elo, simulations). Never invent statistics. If a tool errors, say what you couldn't fetch.
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
-- You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues. When internal tools don't cover it (pre-2018 head-to-heads, transfers, fresh news, stadium/ticket info), call search_football_news to look it up on the web instead of refusing or guessing.
-- Common question → tool map: "trận kế tiếp / lịch đấu / khi nào X đá" → get_upcoming_fixtures · "soi kèo" → get_market_odds (+ get_match_prediction for the verdict) · "AI dự đoán thế nào / tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web search) · "đội hình dự kiến / ai đá chính / formation" → get_expected_lineups · "kết quả trận X" → get_recent_results. Chain tools freely (e.g. next fixture → its odds).
+- You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues, player/team comparisons, "who scores most" etc. Retrieval order: internal KB/data tools FIRST, then web search; only refuse clearly non-football topics.
+- Common question → tool map: "thể thức/luật/sân nào/chủ nhà/khi nào (giải)" → get_wc_info · "tin mới nhất/có gì mới" → get_wc_news · "trận kế tiếp/lịch đấu" → get_upcoming_fixtures · "soi kèo/tài xỉu" → get_match_prediction (+ get_market_odds) · "AI dự đoán/tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web) · "đội hình dự kiến" → get_expected_lineups · "kết quả" → get_recent_results · history/transfers/other → search_football_news. Chain tools freely.
+- When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean.
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.

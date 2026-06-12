@@ -53,6 +53,7 @@ def simplify_match(m: dict) -> dict:
         "stage": m["stage"],              # GROUP_STAGE/LAST_32/.../FINAL
         "group": m.get("group"),
         "matchday": m.get("matchday"),
+        "venue": m.get("venue"),
         "home": {"id": m["homeTeam"]["id"], "name": m["homeTeam"]["name"],
                  "tla": m["homeTeam"]["tla"], "crest": m["homeTeam"]["crest"]},
         "away": {"id": m["awayTeam"]["id"], "name": m["awayTeam"]["name"],

@@ -100,6 +100,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "ctx_seeding": { vi: "{team} đã chắc suất, có thể không cố xếp nhất để né nhánh đấu mạnh hơn.", en: "{team} is through and may not chase top spot, to dodge a tougher bracket." },
   "ctx_ko_lockdown": { vi: "{team} (cửa dưới) nhiều khả năng phòng ngự, kéo về luân lưu — cơ hội thắng pen ~{pens_win}.", en: "{team} (underdog) likely to lock down and play for penalties — ~{pens_win} shootout win chance." },
   "ctx_ko_stage": { vi: "Vòng loại trực tiếp ({stage}) — bàn thắng thường ít hơn vòng bảng.", en: "Knockout ({stage}) — typically fewer goals than the group stage." },
+  "ctx_altitude": { vi: "Sân {city} ở độ cao {alt}m — bóng đi nhanh, dễ nhiều bàn hơn (nghiêng Tài).", en: "{city} sits at {alt}m altitude — ball flies faster, tends to more goals (lean Over)." },
+  "ctx_heat": { vi: "Sân lộ thiên ở {city}, đá lúc {hour}h trời nóng — tempo giảm, ít bàn cuối trận (nghiêng Xỉu).", en: "Open-roof {city}, {hour}:00 heat — lower tempo, fewer late goals (lean Under)." },
 
   "match.asian": { vi: "Kèo châu Á — AI dự đoán Tài/Xỉu", en: "Asian lines — AI Over/Under %" },
   "match.goals_line": { vi: "Bàn thắng", en: "Goals" },
@@ -321,6 +323,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "chat.chip_title": { vi: "Đội nào dễ vô địch nhất?", en: "Who's most likely to win it all?" },
   "chat.chip_whatif": { vi: "Nếu {m} có kết quả sốc thì sao?", en: "What if {m} ends in a shock?" },
   "chat.chip_next": { vi: "Trận kế tiếp là trận nào?", en: "What's the next match?" },
+  "chat.chip_format": { vi: "Thể thức 8 đội ba đi tiếp thế nào?", en: "How do the 8 best thirds qualify?" },
+  "chat.chip_news": { vi: "Tin nóng World Cup hôm nay?", en: "Latest World Cup news?" },
   "chat.chip_lineup": { vi: "Đội hình dự kiến {m}?", en: "Expected lineups for {m}?" },
   "chat.fab_label": { vi: "Hỏi AI", en: "Ask AI" },
   "chat.teaser": { vi: "👋 Hỏi tôi về bất kỳ trận đấu nào — dự đoán, kèo, kịch bản!", en: "👋 Ask me about any match — predictions, odds, what-ifs!" },

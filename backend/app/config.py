@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
     context_ko_lockdown_factor: float = 0.90
 
+    # Venue-conditions O/U factor (WC-2026 altitude + heat)
+    venue_adjust_enabled: bool = True
+    venue_alt_max: float = 0.07     # max altitude goal bump (Mexico City)
+    venue_heat_max: float = 0.06    # max heat goal reduction (hot afternoon, open roof)
+
     # Dixon-Robinson minute simulator (engine/match_sim.py)
     sim_state_effect: float = 0.12   # leading team eases / trailing pushes
     sim_lambda_cv: float = 0.18      # pre-match parameter uncertainty (Gamma CV)

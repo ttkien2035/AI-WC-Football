@@ -366,6 +366,13 @@ function ContextBanner({ pred }: { pred: Prediction }) {
           {pred.home}: <b>{stakeWord(c.stakes.home)}</b> · {pred.away}: <b>{stakeWord(c.stakes.away)}</b>
         </p>
       )}
+      {pred.components.venue?.venue && (
+        <p className="mb-1 text-[11px] text-slate-500 dark:text-slate-400">
+          🏟 {pred.components.venue.venue.stadium}, {pred.components.venue.venue.city}
+          {pred.components.venue.venue.alt >= 1000 && ` · ${pred.components.venue.venue.alt}m`}
+          {pred.components.venue.venue.roof && " · 🏠"}
+        </p>
+      )}
       {c.notes.map((n, i) => (
         <p key={i} className="text-xs leading-5 text-slate-600 dark:text-slate-300">• {t(n.key, n.params)}</p>
       ))}

@@ -63,6 +63,8 @@ async def get_matches(force: bool = False) -> list[dict]:
                 lu = e["lineups"]
                 m["lineups"] = ({"home": lu.get("away"), "away": lu.get("home")}
                                 if flipped else lu)
+            if e.get("venue"):
+                m["venue"] = e["venue"]
         if e and (e["live"] or e["finished"]):
             if e["minute"] is not None:
                 m["minute_estimate"] = minute = e["minute"]
@@ -379,8 +381,16 @@ async def predict(home: str, away: str, minute: int | None = None,
     finished = _finished_tuple(matches)
     ml_probs = ml_ensemble.predict_wdl(home, away, finished, elo_adjust=elo_adjust)
     lam_override = ml_ensemble.goal_lambdas(home, away, finished, elo_adjust=elo_adjust)
-    from .engine import style_adjust, context as ctx_engine
+    from .engine import style_adjust, context as ctx_engine, venue as venue_engine
+    from .static_data import MATCH_SCHEDULE
     sf, sf_reason = style_adjust.total_goals_factor(home, away)
+    # venue conditions (altitude / heat) — total-goals λ multiplier
+    v_str = (fixture or {}).get("venue")
+    v_city = None
+    if fixture and fixture.get("id") in MATCH_SCHEDULE:
+        v_city = MATCH_SCHEDULE[fixture["id"]][1]
+    ven = venue_engine.conditions_factor(
+        v_str, (fixture or {}).get("utcDate"), v_city)
     sim_cache = await latest_simulation()
     ctx = ctx_engine.match_context(
         home, away, stage, fixture.get("group") if fixture else None,
@@ -400,7 +410,8 @@ async def predict(home: str, away: str, minute: int | None = None,
         red_cards=red_cards,
         stage=stage, rho=ml_ensemble.dc_rho(),
         style_factor=sf,
-        context_factor=ctx["factor"], draw_bump=ctx.get("draw_bump", 0.0),
+        context_factor=ctx["factor"] * ven["factor"],  # venue folded into λ
+        draw_bump=ctx.get("draw_bump", 0.0),
     )
     if pen_h or pen_a:
         pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
@@ -433,8 +444,9 @@ async def predict(home: str, away: str, minute: int | None = None,
         "factor": round(ctx["factor"], 3),
         "stakes": ctx.get("stakes"), "seeding": ctx.get("seeding"),
         "lockdown_underdog": ctx.get("lockdown_underdog"),
-        "notes": ctx.get("notes", []),
+        "notes": ctx.get("notes", []) + ven.get("notes", []),
     }
+    pred["components"]["venue"] = {"factor": ven["factor"], "venue": ven["venue"]}
 
     # ---- period-level extensions ----
     lam_h, lam_a = pred["lambdas"]["home"], pred["lambdas"]["away"]
