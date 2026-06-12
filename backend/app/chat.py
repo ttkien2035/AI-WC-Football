@@ -51,7 +51,7 @@ VI_ALIASES = {
     "tây ban nha": "ESP", "bồ đào nha": "POR", "đức": "GER", "pháp": "FRA",
     "anh": "ENG", "hà lan": "NED", "bỉ": "BEL", "thụy sĩ": "SUI",
     "thụy điển": "SWE", "na uy": "NOR", "áo": "AUT", "croatia": "CRO",
-    "scotland": "SCO", "séc": "CZE", "czech": "CZE", "bosnia": "BIH",
+    "scotland": "SCO", "séc": "CZE", "ch séc": "CZE", "czech": "CZE", "bosnia": "BIH",
     "hàn quốc": "KOR", "hàn": "KOR", "nhật bản": "JPN", "nhật": "JPN",
     "iran": "IRN", "iraq": "IRQ", "qatar": "QAT", "ả rập xê út": "KSA",
     "saudi": "KSA", "jordan": "JOR", "uzbekistan": "UZB", "úc": "AUS",
@@ -67,11 +67,48 @@ VI_ALIASES = {
 _NAME_TO_TLA = {t["name"].lower(): tla for tla, t in TEAMS.items()}
 
 
+def _norm(s: str) -> str:
+    """lowercase, strip diacritics, '&'->'and', drop punctuation."""
+    import re
+    import unicodedata
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    s = s.replace("&", " and ")
+    s = re.sub(r"[^a-z0-9 ]", " ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _build_norm_map() -> dict[str, str]:
+    from .static_data import ODDS_NAME_TO_TLA
+    m: dict[str, str] = {}
+    for src in (_NAME_TO_TLA, VI_ALIASES, ODDS_NAME_TO_TLA):
+        for name, tla in src.items():
+            m[_norm(name)] = tla
+    return m
+
+
+_NORM_MAP = _build_norm_map()
+
+
 def resolve_team(s: str) -> str | None:
-    s = (s or "").strip().lower()
-    if s.upper() in TEAMS:
-        return s.upper()
-    return _NAME_TO_TLA.get(s) or VI_ALIASES.get(s)
+    """Robust: exact TLA, exact normalized name/alias, then containment
+    fuzzy match — LLM tool args come in many spellings ('Bosnia &
+    Herzegovina', 'Korea Republic', 'Tây Ban Nha'...)."""
+    raw = (s or "").strip()
+    if raw.upper() in TEAMS:
+        return raw.upper()
+    n = _norm(raw)
+    if not n:
+        return None
+    if n in _NORM_MAP:
+        return _NORM_MAP[n]
+    # containment either way, longest key wins (>=4 chars to avoid noise)
+    best = None
+    for key, tla in _NORM_MAP.items():
+        if len(key) >= 4 and (key in n or n in key):
+            if best is None or len(key) > len(best[0]):
+                best = (key, tla)
+    return best[1] if best else None
 
 
 # ── quota ────────────────────────────────────────────────────────────────
