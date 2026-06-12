@@ -103,6 +103,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "ctx_ko_stage": { vi: "Vòng loại trực tiếp ({stage}) — bàn thắng thường ít hơn vòng bảng.", en: "Knockout ({stage}) — typically fewer goals than the group stage." },
   "ctx_altitude": { vi: "Sân {city} ở độ cao {alt}m — bóng đi nhanh, dễ nhiều bàn hơn (nghiêng Tài).", en: "{city} sits at {alt}m altitude — ball flies faster, tends to more goals (lean Over)." },
   "ctx_heat": { vi: "Sân lộ thiên ở {city}, đá lúc {hour}h trời nóng — tempo giảm, ít bàn cuối trận (nghiêng Xỉu).", en: "Open-roof {city}, {hour}:00 heat — lower tempo, fewer late goals (lean Under)." },
+  "ctx_heat_real": { vi: "Dự báo {city} lúc bóng lăn: {temp}°C (cảm giác {feels}°C, ẩm {humidity}%) — sân lộ thiên, tempo giảm (nghiêng Xỉu).", en: "Kickoff forecast {city}: {temp}°C (feels {feels}°C, {humidity}% humidity) — open roof, lower tempo (lean Under)." },
 
   "match.asian": { vi: "Kèo châu Á — AI dự đoán Tài/Xỉu", en: "Asian lines — AI Over/Under %" },
   "match.goals_line": { vi: "Bàn thắng", en: "Goals" },

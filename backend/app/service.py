@@ -396,8 +396,14 @@ async def predict(home: str, away: str, minute: int | None = None,
     v_city = None
     if fixture and fixture.get("id") in MATCH_SCHEDULE:
         v_city = MATCH_SCHEDULE[fixture["id"]][1]
+    # real kickoff forecast (Open-Meteo) — None falls back to the static table
+    from .clients import weather as weather_client
+    from .venue_data import resolve_venue
+    _v_prof = resolve_venue(v_str, v_city)
+    wx = await weather_client.kickoff_conditions(
+        _v_prof["city"] if _v_prof else None, (fixture or {}).get("utcDate"))
     ven = venue_engine.conditions_factor(
-        v_str, (fixture or {}).get("utcDate"), v_city)
+        v_str, (fixture or {}).get("utcDate"), v_city, weather=wx)
     sim_cache = await latest_simulation()
     ctx = ctx_engine.match_context(
         home, away, stage, fixture.get("group") if fixture else None,
@@ -454,7 +460,8 @@ async def predict(home: str, away: str, minute: int | None = None,
         "lockdown_underdog": ctx.get("lockdown_underdog"),
         "notes": ctx.get("notes", []) + ven.get("notes", []),
     }
-    pred["components"]["venue"] = {"factor": ven["factor"], "venue": ven["venue"]}
+    pred["components"]["venue"] = {"factor": ven["factor"], "venue": ven["venue"],
+                                   "weather": ven.get("weather")}
     from .static_data import pot_of, group_difficulty
     pred["components"]["seed"] = {
         "home_pot": pot_of(home), "away_pot": pot_of(away),

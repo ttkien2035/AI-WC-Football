@@ -126,6 +126,15 @@ class Settings(BaseSettings):
     venue_alt_max: float = 0.07     # max altitude goal bump (Mexico City)
     venue_heat_max: float = 0.06    # max heat goal reduction (hot afternoon, open roof)
 
+    # Real kickoff weather (Open-Meteo, free/no-key). When a forecast is
+    # available the heat cut scales linearly with apparent temperature
+    # between start and full; otherwise venue.py keeps the static heuristic.
+    weather_enabled: bool = True
+    weather_heat_start_c: float = 27.0  # apparent °C where the cut starts
+    weather_heat_full_c: float = 37.0   # apparent °C of the full venue_heat_max cut
+    weather_timeout_s: float = 4.0
+    ttl_weather: float = 3 * 3600.0
+
     # Dixon-Robinson minute simulator (engine/match_sim.py)
     sim_state_effect: float = 0.12   # leading team eases / trailing pushes
     sim_lambda_cv: float = 0.18      # pre-match parameter uncertainty (Gamma CV)

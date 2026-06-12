@@ -57,6 +57,27 @@ VENUES = {
                   "alt": 0, "roof": True, "tz": -7, "hot": False},
 }
 
+# stadium coordinates by host city (for the Open-Meteo forecast lookup);
+# point is the stadium itself, not downtown (e.g. Foxborough, Inglewood).
+CITY_COORDS = {
+    "Mexico City": (19.303, -99.151),    # Estadio Azteca
+    "Guadalajara": (20.682, -103.463),   # Estadio Akron (Zapopan)
+    "Monterrey": (25.669, -100.245),     # Estadio BBVA (Guadalupe)
+    "Dallas": (32.748, -97.093),         # AT&T Stadium (Arlington)
+    "Houston": (29.685, -95.411),        # NRG Stadium
+    "Atlanta": (33.755, -84.401),        # Mercedes-Benz Stadium
+    "Los Angeles": (33.953, -118.339),   # SoFi Stadium (Inglewood)
+    "New York NJ": (40.813, -74.074),    # MetLife (East Rutherford)
+    "Boston": (42.091, -71.264),         # Gillette (Foxborough)
+    "Philadelphia": (39.901, -75.168),   # Lincoln Financial Field
+    "Miami": (25.958, -80.239),          # Hard Rock (Miami Gardens)
+    "Kansas City": (39.049, -94.484),    # Arrowhead
+    "Seattle": (47.595, -122.332),       # Lumen Field
+    "San Francisco": (37.403, -121.970), # Levi's (Santa Clara)
+    "Toronto": (43.633, -79.419),        # BMO Field
+    "Vancouver": (49.277, -123.112),     # BC Place
+}
+
 # city -> venue key (for knockout MATCH_SCHEDULE city lookups)
 CITY_TO_KEY = {}
 for _k, _v in VENUES.items():
