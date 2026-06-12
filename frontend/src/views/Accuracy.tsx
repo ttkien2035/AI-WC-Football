@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, type EvalResult, type MlStatus, type TeamRow, pct } from "../api";
+import { api, type EvalResult, type MlStatus, type TeamRow, type TournamentEval, pct } from "../api";
 import { Card, Flag } from "../components/ui";
 import { useT } from "../i18n";
 
@@ -11,11 +11,13 @@ export default function Accuracy() {
   const [team1, setTeam1] = useState("BRA");
   const [team2, setTeam2] = useState("ARG");
   const [result, setResult] = useState<EvalResult | null>(null);
+  const [tour, setTour] = useState<TournamentEval | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     api.mlStatus().then(setStatus);
     api.teams().then(setTeams);
+    api.evalTournament().then(setTour).catch(() => {});
   }, []);
 
   const check = async () => {
@@ -34,6 +36,48 @@ export default function Accuracy() {
 
   return (
     <div className="space-y-4">
+      {tour && tour.matches.length > 0 && (
+        <Card>
+          <h2 className="mb-1 text-lg font-bold">{t("acc.wc_heading")}</h2>
+          <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">{t("acc.wc_note")}</p>
+          {tour.summary && (
+            <p className="mb-2 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+              {t("acc.result", {
+                c: tour.summary.correct, n: tour.summary.n,
+                pct: pct(tour.summary.accuracy), rps: tour.summary.rps.toFixed(3),
+              })}
+            </p>
+          )}
+          <div className="space-y-2">
+            {tour.matches.map((m) => (
+              <div key={m.match_id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100/80 p-2.5 text-sm dark:bg-white/[0.07]">
+                <span className="flex items-center gap-2 font-semibold">
+                  <Flag crest={m.home.crest} tla={m.home.tla} />
+                  {m.home.tla} <b className="tabular-nums">{m.score.home}–{m.score.away}</b> {m.away.tla}
+                  <Flag crest={m.away.crest} tla={m.away.tla} />
+                </span>
+                <span className="flex items-center gap-2 text-xs">
+                  <span>
+                    {t("common.predicted")}: <b>{m.predicted}</b> ({pct(m.probs[m.predicted], 0)})
+                    {" · "}{t("acc.pred_score")}: <b>{m.compare.score.pred ?? "–"}</b>
+                  </span>
+                  {m.compare.score.hit ? (
+                    <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-amber-950">
+                      🎯 {t("acc.exact")}
+                    </span>
+                  ) : m.correct ? (
+                    <span className="font-bold text-emerald-500">✓</span>
+                  ) : (
+                    <span className="font-bold text-red-400">✗</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
       <Card>
         <h2 className="mb-1 text-lg font-bold">{t("acc.heading")}</h2>
         <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">{t("acc.note")}</p>

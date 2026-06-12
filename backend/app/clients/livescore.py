@@ -83,10 +83,8 @@ def _int(v):
         return None
 
 
-async def wc_events_today() -> list[dict]:
-    """World Cup events for today (UTC), parsed + TLA-matched."""
-    day = datetime.now(timezone.utc).strftime("%Y%m%d")
-    data = await _get(f"date/soccer/{day}/0", ttl=30)
+async def _wc_events_on(day: str, ttl: int) -> list[dict]:
+    data = await _get(f"date/soccer/{day}/0", ttl=ttl)
     if not data:
         return []
     out = []
@@ -96,6 +94,17 @@ async def wc_events_today() -> list[dict]:
             continue
         out.extend(_event(ev) for ev in stage.get("Events", []))
     return [e for e in out if e["home_tla"] and e["away_tla"]]
+
+
+async def wc_events_today() -> list[dict]:
+    """WC events for today AND yesterday (UTC) — the overlap keeps incidents/
+    corners available for finished matches across the midnight boundary."""
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    today = await _wc_events_on(now.strftime("%Y%m%d"), ttl=30)
+    yday = await _wc_events_on((now - timedelta(days=1)).strftime("%Y%m%d"), ttl=600)
+    seen = {e["eid"] for e in today}
+    return today + [e for e in yday if e["eid"] not in seen]
 
 
 # LiveScore incident-type codes (community-documented; unknown codes ignored)
@@ -145,8 +154,10 @@ def _walk_incidents(node, side: str, out: list) -> None:
                 "red" if it in _IT_RED else
                 "yellow" if it in _IT_YELLOW else None)
         if kind:
+            minute_ex = node.get("MinEx")
             out.append({
                 "minute": minute if isinstance(minute, int) else None,
+                "minute_ex": minute_ex if isinstance(minute_ex, int) else None,
                 "type": kind,
                 "own_goal": it in _IT_OWN_GOAL,
                 "penalty": it in _IT_PEN_GOAL,
@@ -217,28 +228,38 @@ async def lineups(eid) -> dict | None:
     return out if out else None
 
 
-_CORNER_KEYS = ("Crn", "Cnr", "Crs", "Co")
+# Real shape (verified vs MEX-RSA opener FT): Stat = [{Tnb:1, Cos: corners,
+# Crs: crosses, Ycs/Rcs: cards, Pss: possession, Shon: shots on target, ...}]
+_STAT_FIELDS = {"corners": "Cos", "crosses": "Crs", "possession": "Pss",
+                "shots_on": "Shon", "yellows": "Ycs", "reds": "Rcs",
+                "fouls": "Fls", "offsides": "Ofs"}
 
 
-def _corners_from_stats(stats: dict) -> dict | None:
-    """Defensive: locate a corners-like stat for both teams in the statistics
-    payload (shape only observable on live matches)."""
-    if not stats:
-        return None
+def _parse_stats(stats: dict) -> dict | None:
     blocks = stats.get("Stat") or stats.get("Stats") or []
     if isinstance(blocks, dict):
         blocks = [blocks]
+    sides = {}
     for b in blocks:
-        for k, v in (b.items() if isinstance(b, dict) else []):
-            if any(k.startswith(ck) for ck in _CORNER_KEYS) and isinstance(v, (list, tuple)) \
-                    and len(v) == 2:
-                return {"home": _int(v[0]), "away": _int(v[1])}
-    return None
+        if not isinstance(b, dict):
+            continue
+        side = _side_of(b, default="")
+        if side:
+            sides[side] = b
+    if not sides:
+        return None
+    out = {}
+    for name, key in _STAT_FIELDS.items():
+        h = _int((sides.get("home") or {}).get(key))
+        a = _int((sides.get("away") or {}).get(key))
+        if h is not None or a is not None:
+            out[name] = {"home": h, "away": a}
+    return out or None
 
 
 async def match_stats(eid) -> dict | None:
     data = await _get(f"statistics/soccer/{eid}", ttl=60)
-    return _corners_from_stats(data) if data else None
+    return _parse_stats(data) if data else None
 
 
 async def enrichment() -> dict[frozenset, dict]:
@@ -248,7 +269,9 @@ async def enrichment() -> dict[frozenset, dict]:
     for ev in await wc_events_today():
         entry = dict(ev)
         if ev["live"] or ev["finished"]:
-            entry["corners"] = await match_stats(ev["eid"])
+            stats = await match_stats(ev["eid"])
+            entry["stats"] = stats
+            entry["corners"] = (stats or {}).get("corners")
             incs = await incidents(ev["eid"])
             entry["incidents"] = incs
             entry["red_cards"] = {

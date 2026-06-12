@@ -50,6 +50,9 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "probs": pred["probs"],
             "lambdas": pred["lambdas"],
             "top_score": pred["scorelines"][0] if pred["scorelines"] else None,
+            "over25": pred.get("over25"),
+            "btts": pred.get("btts"),
+            "corners_expected": (pred.get("corners") or {}).get("expected"),
             "absence": pred.get("absence_penalty"),
             "lineup_aware": lineup_known,
             "ts": now.isoformat(timespec="seconds"),
@@ -101,11 +104,11 @@ async def review(limit: int = 30) -> dict:
         correct = pick == actual
         n_correct += correct
         order = ("home", "draw", "away")
-        cp, co = 0.0, 0.0
+        cp = 0.0
         rps = 0.0
         for k in order[:2]:
             cp += probs[k]
-            co += 1.0 if order.index(actual) <= order.index(k) else 0.0
+            co = 1.0 if order.index(actual) <= order.index(k) else 0.0
             rps += (cp - co) ** 2
         rps_sum += rps / 2
         ll_sum += -math.log(max(p_actual, 1e-12))
@@ -121,7 +124,61 @@ async def review(limit: int = 30) -> dict:
                 elo_shift = {"home": round(after[h] - before[h], 1),
                              "away": round(after[a] - before[a], 1)}
 
-        ht = m.get("ht_score")
+        # ---- predicted vs actual factor comparison + cause analysis ----
+        log_e, _ = cache.get_stale(f"matchlog:{m['id']}")
+        log_e = log_e or {}
+        corners = m.get("corners") or log_e.get("corners")
+        c_total = (corners["home"] + corners["away"]) \
+            if corners and corners.get("home") is not None else None
+        total_goals = gh + ga
+        lam = (pm or {}).get("lambdas") or {}
+        exp_goals = (lam.get("home", 0) + lam.get("away", 0)) or None
+        top = (pm or {}).get("top_score")
+        c_exp = ((pm or {}).get("corners_expected") or {}).get("total")
+        stats = m.get("stats") or log_e.get("stats")
+
+        compare = {
+            "winner": {"pred": pick, "actual": actual, "hit": correct},
+            "score": {"pred": f"{top['home']}-{top['away']}" if top else None,
+                      "actual": f"{gh}-{ga}",
+                      "hit": bool(top and top["home"] == gh and top["away"] == ga)},
+            "total_goals": {"pred_xg": round(exp_goals, 2) if exp_goals else None,
+                            "actual": total_goals},
+            "over25": {"pred_p": (pm or {}).get("over25"),
+                       "actual": total_goals > 2},
+            "btts": {"pred_p": (pm or {}).get("btts"),
+                     "actual": gh > 0 and ga > 0},
+            "corners": {"pred": c_exp, "actual": c_total,
+                        "detail": corners},
+        }
+
+        notes = []
+        if compare["score"]["hit"]:
+            notes.append({"key": "n_exact_score", "params": {}})
+        elif correct:
+            notes.append({"key": "n_winner_hit", "params": {"p": round(probs[pick], 2)}})
+        else:
+            notes.append({"key": "n_winner_miss",
+                          "params": {"pred": pick, "p_actual": round(p_actual, 2)}})
+        if exp_goals is not None and abs(total_goals - exp_goals) >= 1.5:
+            notes.append({"key": "n_goals_off",
+                          "params": {"xg": round(exp_goals, 1), "actual": total_goals}})
+        if c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
+            notes.append({"key": "n_corners_off",
+                          "params": {"pred": round(c_exp, 1), "actual": c_total}})
+        if (pm or {}).get("absence"):
+            notes.append({"key": "n_absence", "params": {}})
+        rc = m.get("red_cards") or {}
+        if (rc.get("home") or 0) + (rc.get("away") or 0) > 0 or \
+                ((stats or {}).get("reds") and ((stats["reds"].get("home") or 0)
+                                                + (stats["reds"].get("away") or 0)) > 0):
+            notes.append({"key": "n_red_cards", "params": {}})
+        ht = m.get("ht_score") or log_e.get("ht_score")
+        if ht and ht.get("home") is not None and (
+                ("home" if ht["home"] > ht["away"] else
+                 "draw" if ht["home"] == ht["away"] else "away") != actual):
+            notes.append({"key": "n_ht_swing", "params": {}})
+
         rows.append({
             "match_id": m["id"], "date": m["utcDate"], "stage": m["stage"],
             "home": m["home"], "away": m["away"],
@@ -133,13 +190,13 @@ async def review(limit: int = 30) -> dict:
             "tag": _surprise_tag(correct, p_actual, probs[pick]),
             "factors": {
                 "red_cards": m.get("red_cards"),
-                "corners": m.get("corners"),
-                "ht_swing": bool(ht and ht["home"] is not None and (
-                    ("home" if ht["home"] > ht["away"] else
-                     "draw" if ht["home"] == ht["away"] else "away") != actual)),
+                "corners": corners,
+                "ht_swing": any(x["key"] == "n_ht_swing" for x in notes),
                 "absence": (pm or {}).get("absence"),
                 "lineup_aware": (pm or {}).get("lineup_aware"),
             },
+            "compare": compare,
+            "notes": notes,
             "elo_shift": elo_shift,
         })
 

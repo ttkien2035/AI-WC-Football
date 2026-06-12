@@ -267,6 +267,40 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "chat.fab_label": { vi: "Hỏi AI", en: "Ask AI" },
   "chat.teaser": { vi: "👋 Hỏi tôi về bất kỳ trận đấu nào — dự đoán, kèo, kịch bản!", en: "👋 Ask me about any match — predictions, odds, what-ifs!" },
 
+  // Results
+  "res.heading": { vi: "Kết quả mới nhất", en: "Latest results" },
+  "res.none": { vi: "Chưa có trận nào kết thúc.", en: "No finished matches yet." },
+  "res.corners": { vi: "Phạt góc", en: "Corners" },
+  "res.possession": { vi: "Kiểm soát bóng", en: "Possession" },
+
+  // Tournament accuracy (public)
+  "acc.wc_heading": { vi: "⚽ World Cup 2026 — kiểm chứng trực tiếp", en: "⚽ World Cup 2026 — live verification" },
+  "acc.wc_note": { vi: "Dự đoán được chốt TRƯỚC giờ bóng lăn của từng trận, đối chiếu với kết quả thật.", en: "Predictions locked BEFORE each kickoff, compared with real results." },
+  "acc.pred_score": { vi: "Tỉ số dự đoán", en: "Predicted score" },
+  "acc.exact": { vi: "TRÚNG TỈ SỐ", en: "EXACT SCORE" },
+
+  // Pipeline compare + cause notes
+  "pl.compare": { vi: "Đối chiếu từng yếu tố", en: "Factor-by-factor comparison" },
+  "pl.c_factor": { vi: "Yếu tố", en: "Factor" },
+  "pl.c_pred": { vi: "AI dự đoán", en: "AI predicted" },
+  "pl.c_actual": { vi: "Thực tế", en: "Actual" },
+  "pl.c_winner": { vi: "Đội thắng", en: "Winner" },
+  "pl.c_score": { vi: "Tỉ số", en: "Score" },
+  "pl.c_goals": { vi: "Tổng bàn (xG)", en: "Total goals (xG)" },
+  "pl.c_o25": { vi: "Tài 2.5", en: "Over 2.5" },
+  "pl.c_btts": { vi: "2 đội ghi bàn", en: "BTTS" },
+  "pl.c_corners": { vi: "Phạt góc", en: "Corners" },
+  "pl.analysis": { vi: "Phân tích nguyên nhân", en: "Cause analysis" },
+  "n_exact_score": { vi: "🎯 Model trúng CHÍNH XÁC tỉ số — kèm đúng đội thắng.", en: "🎯 Model nailed the EXACT scoreline and winner." },
+  "n_winner_hit": { vi: "✓ Đoán đúng kết quả với xác suất {p}.", en: "✓ Correct result at probability {p}." },
+  "n_winner_miss": { vi: "✗ Model nghiêng về {pred} nhưng kết quả khác (model chỉ cho kết quả thật {p_actual}). Cần xem yếu tố bên dưới.", en: "✗ Model leaned {pred}; actual outcome was given only {p_actual}. See factors below." },
+  "n_goals_off": { vi: "Tổng bàn lệch nhiều: xG {xg} vs thực tế {actual} — xem lại cường độ tấn công/λ.", en: "Goal total off: xG {xg} vs actual {actual} — review attacking-rate λ." },
+  "n_corners_off": { vi: "Phạt góc lệch: dự {pred} vs thật {actual} — model góc sẽ tự calibrate khi thêm dữ liệu giải.", en: "Corners off: predicted {pred} vs actual {actual} — corner model self-calibrates with more tournament data." },
+  "n_absence": { vi: "Trận có trụ cột vắng mặt — model đã trừ Elo từ XI công bố.", en: "Key players were missing — Elo penalty applied from announced XI." },
+  "n_red_cards": { vi: "Trận có thẻ đỏ — yếu tố nhiễu lớn ngoài dự đoán pre-match.", en: "Red card(s) occurred — major in-game noise vs pre-match model." },
+  "n_ht_swing": { vi: "Kết quả lật so với hiệp 1 — trận biến động cao.", en: "Result flipped vs half-time — high-variance match." },
+  "pl.model_update": { vi: "Model update: Elo online đã áp ({h}: {dh}, {a}: {da}) · retrain đêm 03:00 UTC sẽ học trận này.", en: "Model update: online Elo applied ({h}: {dh}, {a}: {da}) · tonight's 03:00 UTC retrain will learn from this match." },
+
   // common
   "common.loading": { vi: "Đang tải…", en: "Loading…" },
   "common.date": { vi: "Ngày", en: "Date" },

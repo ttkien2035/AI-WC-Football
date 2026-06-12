@@ -82,12 +82,12 @@ async def _tick() -> float:
         log.exception("prematch snapshot failed")
 
     finished = {m["id"] for m in matches if m["status"] == "FINISHED"}
+    service.record_match_log(matches)        # merge-update every tick
     new_finished = finished - _state["finished_ids"]
     if new_finished:
         log.info("New finished matches: %s — recomputing simulation", sorted(new_finished))
         cache.invalidate("fd:/competitions/WC/standings")
         service.record_corner_stats(matches)
-        service.record_match_log(matches)
         await service.run_simulation(force=True)
     elif not _state["finished_ids"] and not await service.latest_simulation():
         await service.run_simulation()       # first boot: warm the cache

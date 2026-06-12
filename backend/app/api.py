@@ -70,6 +70,25 @@ async def live_timeline(match_id: int):
     return {"match_id": match_id, "points": service.timeline(match_id)}
 
 
+@router.get("/results")
+async def results(n: int = Query(default=10, ge=1, le=104)):
+    return {"results": await service.recent_results(n)}
+
+
+@router.get("/evaluate/tournament")
+async def evaluate_tournament():
+    """Public verdicts for THIS tournament's finished matches: what the model
+    predicted pre-match vs what happened (subset of the admin review)."""
+    rev = await pipeline.review()
+    public = [
+        {k: r[k] for k in ("match_id", "date", "stage", "home", "away", "score",
+                           "ht_score", "probs", "predicted", "actual", "correct",
+                           "p_actual", "tag", "compare")}
+        for r in rev["matches"]
+    ]
+    return {"matches": public, "summary": rev["summary"]}
+
+
 @router.get("/match/{home}/{away}/analysis")
 async def match_analysis(home: str, away: str):
     try:

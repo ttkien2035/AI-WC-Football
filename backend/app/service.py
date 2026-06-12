@@ -78,6 +78,8 @@ async def get_matches(force: bool = False) -> list[dict]:
                 m["ht_score"] = _flip(ht)
             if e.get("corners"):
                 m["corners"] = _flip(e["corners"])
+            if e.get("stats"):
+                m["stats"] = {k: _flip(v) for k, v in e["stats"].items()}
             if e.get("red_cards"):
                 m["red_cards"] = _flip(e["red_cards"])
             if e.get("incidents"):
@@ -94,18 +96,54 @@ async def get_matches(force: bool = False) -> list[dict]:
 
 def record_match_log(matches: list[dict]) -> None:
     """Persist the app's own structured record of every finished match
-    (result, HT score, corners, stage) — an in-tournament dataset that
-    survives restarts and feeds future calibration/retraining."""
+    (result, HT, corners, incidents, stats). Runs every scheduler tick and
+    MERGES: never overwrite a captured value with null (live enrichment for a
+    match disappears after the day boundary — keep what we caught)."""
     for m in matches:
         if m["status"] != "FINISHED" or not m["home"]["tla"]:
             continue
-        cache.put(f"matchlog:{m['id']}", {
+        key = f"matchlog:{m['id']}"
+        old, _ = cache.get_stale(key)
+        old = old or {}
+        fresh = {
             "id": m["id"], "date": m["utcDate"], "stage": m["stage"],
             "group": m.get("group"),
             "home": m["home"]["tla"], "away": m["away"]["tla"],
+            "home_name": m["home"]["name"], "away_name": m["away"]["name"],
+            "home_crest": m["home"]["crest"], "away_crest": m["away"]["crest"],
             "score": m["score"], "ht_score": m.get("ht_score"),
-            "corners": m.get("corners"),
+            "corners": m.get("corners"), "stats": m.get("stats"),
+            "incidents": m.get("incidents"),
+        }
+        merged = dict(old)
+        for k, v in fresh.items():
+            keep_old = (v is None or (k == "score" and v.get("home") is None)
+                        or (k == "incidents" and not v))
+            if not (keep_old and old.get(k) is not None):
+                merged[k] = v
+        cache.put(key, merged)
+
+
+async def recent_results(n: int = 10) -> list[dict]:
+    """Finished matches, newest first, enriched from the persisted match log
+    (incidents/corners survive even after live enrichment expires)."""
+    matches = await get_matches()
+    done = [m for m in matches if m["status"] == "FINISHED" and m["home"]["tla"]]
+    done.sort(key=lambda m: m["utcDate"], reverse=True)
+    out = []
+    for m in done[:n]:
+        log_entry, _ = cache.get_stale(f"matchlog:{m['id']}")
+        log_entry = log_entry or {}
+        out.append({
+            "id": m["id"], "date": m["utcDate"], "stage": m["stage"],
+            "group": m.get("group"), "home": m["home"], "away": m["away"],
+            "score": m["score"] if m["score"]["home"] is not None else log_entry.get("score"),
+            "ht_score": m.get("ht_score") or log_entry.get("ht_score"),
+            "corners": m.get("corners") or log_entry.get("corners"),
+            "stats": m.get("stats") or log_entry.get("stats"),
+            "incidents": m.get("incidents") or log_entry.get("incidents") or [],
         })
+    return out
 
 
 def record_corner_stats(matches: list[dict]) -> None:

@@ -112,6 +112,10 @@ TOOL_DECLS = [
     {"name": "get_live_and_today",
      "description": "Live matches right now (score, minute, cards, corners) and today's fixtures.",
      "parameters": {"type": "object", "properties": {}}},
+    {"name": "get_recent_results",
+     "description": "RESULTS of recently finished World Cup matches: final + half-time score, goalscorers with minutes, cards, corners, possession. Use for any question about a match that already happened ('trận vừa rồi', 'kết quả').",
+     "parameters": {"type": "object", "properties": {
+         "n": {"type": "integer", "description": "how many recent matches, default 8"}}}},
     {"name": "get_match_prediction",
      "description": "Full model prediction for a matchup: win/draw/loss %, expected goals, model components (ML/market/Elo), halves, corners, extra-time/penalties, key-player absences.",
      "parameters": {"type": "object", "properties": {
@@ -154,6 +158,7 @@ TOOL_DECLS = [
 
 TOOL_LABELS = {
     "get_live_and_today": ("Xem trận live & hôm nay", "Checking live & today's matches"),
+    "get_recent_results": ("Tra kết quả các trận đã đấu", "Fetching recent results"),
     "get_match_prediction": ("Tra dự đoán trận đấu", "Fetching match prediction"),
     "get_team_overview": ("Phân tích đội bóng", "Analyzing team"),
     "get_title_odds": ("Xem cửa vô địch", "Fetching title odds"),
@@ -172,6 +177,22 @@ async def _exec_tool(name: str, args: dict) -> dict:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
             return {"live": [_mt(m) for m in ms if m["status"] in service.LIVE_STATUSES],
                     "today": [_mt(m) for m in ms if m["utcDate"][:10] == today]}
+        if name == "get_recent_results":
+            res = await service.recent_results(int(args.get("n") or 8))
+            return {"results": [
+                {"home": r["home"]["tla"], "away": r["away"]["tla"],
+                 "score": r["score"], "ht": r.get("ht_score"),
+                 "date": r["date"], "stage": r["stage"],
+                 "goals": [{"minute": i.get("minute"), "player": i.get("player"),
+                            "side": i.get("side"), "penalty": i.get("penalty"),
+                            "own_goal": i.get("own_goal")}
+                           for i in (r.get("incidents") or []) if i.get("type") == "goal"],
+                 "cards": [{"minute": i.get("minute"), "player": i.get("player"),
+                            "side": i.get("side"), "card": i.get("type")}
+                           for i in (r.get("incidents") or []) if i.get("type") in ("yellow", "red")],
+                 "corners": r.get("corners"),
+                 "possession": (r.get("stats") or {}).get("possession")}
+                for r in res]}
         if name == "get_match_prediction":
             h, a = _resolve2(args)
             p = await service.predict(h, a)

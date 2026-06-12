@@ -7,6 +7,7 @@ import {
   api, type Match, type Prediction, type TimelinePoint, pct,
 } from "../api";
 import { Card, Flag, ProbBar } from "../components/ui";
+import ResultsCard from "../components/ResultsCard";
 import { useT } from "../i18n";
 
 const POLL_MS = 20_000;
@@ -33,7 +34,12 @@ export default function Live() {
   const match = live.find((m) => m.id === selected) ?? null;
 
   if (live.length === 0) {
-    return <NoLive today={today} />;
+    return (
+      <div className="space-y-4">
+        <NoLive today={today} />
+        <ResultsCard limit={6} />
+      </div>
+    );
   }
   return (
     <div className="space-y-4">

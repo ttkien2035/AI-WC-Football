@@ -318,7 +318,81 @@ function ReviewCard({ r }: { r: ReviewRow }) {
       {factors.length > 0 && (
         <p className="mt-1 text-xs text-slate-400">{factors.join("  ·  ")}</p>
       )}
+
+      {/* factor-by-factor comparison */}
+      {r.compare && (
+        <div className="mt-2 overflow-x-auto rounded-lg border border-slate-200/60 dark:border-white/10">
+          <table className="w-full min-w-[420px] text-xs tabular-nums">
+            <thead>
+              <tr className="bg-slate-100/80 text-left text-[10px] uppercase text-slate-400 dark:bg-white/[0.05]">
+                <th className="px-2 py-1">{t("pl.c_factor")}</th>
+                <th className="px-2 py-1">{t("pl.c_pred")}</th>
+                <th className="px-2 py-1">{t("pl.c_actual")}</th>
+                <th className="px-2 py-1"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <CmpRow label={t("pl.c_winner")} pred={r.compare.winner.pred}
+                actual={r.compare.winner.actual} hit={r.compare.winner.hit} />
+              <CmpRow label={t("pl.c_score")} pred={r.compare.score.pred ?? "–"}
+                actual={r.compare.score.actual} hit={r.compare.score.hit} gold={r.compare.score.hit} />
+              <CmpRow label={t("pl.c_goals")}
+                pred={r.compare.total_goals.pred_xg != null ? `xG ${r.compare.total_goals.pred_xg}` : "–"}
+                actual={String(r.compare.total_goals.actual)} />
+              <CmpRow label={t("pl.c_o25")}
+                pred={r.compare.over25.pred_p != null ? pct(r.compare.over25.pred_p) : "–"}
+                actual={r.compare.over25.actual ? "✓" : "✗"}
+                hit={r.compare.over25.pred_p != null
+                  ? (r.compare.over25.pred_p > 0.5) === r.compare.over25.actual : undefined} />
+              <CmpRow label={t("pl.c_btts")}
+                pred={r.compare.btts.pred_p != null ? pct(r.compare.btts.pred_p) : "–"}
+                actual={r.compare.btts.actual ? "✓" : "✗"}
+                hit={r.compare.btts.pred_p != null
+                  ? (r.compare.btts.pred_p > 0.5) === r.compare.btts.actual : undefined} />
+              <CmpRow label={t("pl.c_corners")}
+                pred={r.compare.corners.pred != null ? `~${r.compare.corners.pred}` : "–"}
+                actual={r.compare.corners.actual != null
+                  ? `${r.compare.corners.actual}${r.compare.corners.detail
+                      ? ` (${r.compare.corners.detail.home}–${r.compare.corners.detail.away})` : ""}`
+                  : "–"} />
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* cause analysis + model update */}
+      {r.notes && r.notes.length > 0 && (
+        <div className="mt-2 rounded-lg bg-sky-50 p-2 text-xs leading-5 dark:bg-sky-950/30">
+          <p className="mb-0.5 font-semibold text-sky-700 dark:text-sky-300">🔍 {t("pl.analysis")}</p>
+          {r.notes.map((n, i) => <p key={i}>• {t(n.key, n.params)}</p>)}
+          {r.elo_shift && (
+            <p className="mt-1 text-slate-500 dark:text-slate-400">
+              {t("pl.model_update", {
+                h: r.home.tla ?? "?", dh: (r.elo_shift.home > 0 ? "+" : "") + r.elo_shift.home,
+                a: r.away.tla ?? "?", da: (r.elo_shift.away > 0 ? "+" : "") + r.elo_shift.away,
+              })}
+            </p>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+function CmpRow({ label, pred, actual, hit, gold }: {
+  label: string; pred: string; actual: string; hit?: boolean; gold?: boolean;
+}) {
+  return (
+    <tr className="border-t border-slate-100 dark:border-white/10">
+      <td className="px-2 py-1 text-slate-500 dark:text-slate-400">{label}</td>
+      <td className="px-2 py-1 font-medium">{pred}</td>
+      <td className="px-2 py-1 font-medium">{actual}</td>
+      <td className="px-2 py-1">
+        {gold ? <span className="font-bold text-amber-500">🎯</span>
+          : hit === true ? <span className="font-bold text-emerald-500">✓</span>
+          : hit === false ? <span className="font-bold text-red-400">✗</span> : null}
+      </td>
+    </tr>
   );
 }
 

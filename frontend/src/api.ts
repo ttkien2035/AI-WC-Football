@@ -168,6 +168,8 @@ export const api = {
     j<{ matches: OddsRow[]; source: string; quota: { remaining: string } | null; ml: boolean }>(
       `/api/odds?limit=${limit}`),
   timeline: (id: number) => j<{ points: TimelinePoint[] }>(`/api/live/${id}/timeline`),
+  results: (n = 10) => j<{ results: ResultMatch[] }>(`/api/results?n=${n}`),
+  evalTournament: () => j<TournamentEval>("/api/evaluate/tournament"),
   analysis: (h: string, a: string) => j<Analysis>(`/api/match/${h}/${a}/analysis`),
   evalH2h: (h: string, a: string, n = 10) => j<EvalResult>(`/api/evaluate/h2h/${h}/${a}?n=${n}`),
   evalTeam: (tla: string, n = 12) => j<EvalResult>(`/api/evaluate/team/${tla}?n=${n}`),
@@ -217,11 +219,46 @@ export type ReviewRow = {
     ht_swing: boolean;
     absence?: unknown; lineup_aware?: boolean;
   };
+  compare?: CompareBlock;
+  notes?: { key: string; params: Record<string, string | number> }[];
   elo_shift: { home: number; away: number } | null;
 };
 export type PipelineReview = {
   matches: ReviewRow[];
   summary: { n: number; correct: number; accuracy: number; rps: number; logloss: number } | null;
+};
+
+export type ResultMatch = {
+  id: number; date: string; stage: string; group: string | null;
+  home: Match["home"]; away: Match["away"];
+  score: { home: number; away: number } | null;
+  ht_score?: { home: number; away: number } | null;
+  corners?: { home: number | null; away: number | null } | null;
+  stats?: Record<string, { home: number | null; away: number | null }> | null;
+  incidents: Incident[];
+};
+
+export type CompareBlock = {
+  winner: { pred: string; actual: string; hit: boolean };
+  score: { pred: string | null; actual: string; hit: boolean };
+  total_goals: { pred_xg: number | null; actual: number };
+  over25: { pred_p: number | null; actual: boolean };
+  btts: { pred_p: number | null; actual: boolean };
+  corners: { pred: number | null; actual: number | null;
+             detail: { home: number | null; away: number | null } | null };
+};
+
+export type TournamentEval = {
+  matches: {
+    match_id: number; date: string; stage: string;
+    home: Match["home"]; away: Match["away"];
+    score: { home: number; away: number };
+    ht_score?: { home: number; away: number } | null;
+    probs: Record<string, number>;
+    predicted: string; actual: string; correct: boolean;
+    p_actual: number; tag: string; compare: CompareBlock;
+  }[];
+  summary: { n: number; correct: number; accuracy: number; rps: number } | null;
 };
 
 export type EvalMatch = {
