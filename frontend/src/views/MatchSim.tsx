@@ -466,8 +466,19 @@ function AnalysisPanel({ ana }: { ana: Analysis }) {
               {d.manager_note && (
                 <p className="mt-0.5 italic text-slate-500 dark:text-slate-400">🧠 {d.manager_note}</p>
               )}
-              {d.profile.style && (
-                <p>{t("ana.style")}: {d.profile.style.map((s) => t(`style.${s}`)).join(" · ")}</p>
+              {(d.effective_style ?? d.profile.style) && (
+                <p>{t("ana.style")}: {(d.effective_style ?? d.profile.style)!.map((s) => t(`style.${s}`)).join(" · ")}</p>
+              )}
+              {d.observed_style && (
+                <p className="mt-0.5 text-slate-500 dark:text-slate-400">
+                  📊 {t("ana.observed", {
+                    n: String(d.observed_style.n),
+                    poss: String(d.observed_style.possession),
+                    shots: String(d.observed_style.shots),
+                    xgf: d.observed_style.xg_for.toFixed(1),
+                    xga: d.observed_style.xg_against.toFixed(1),
+                  })}
+                </p>
               )}
               {d.profile.value_tier && (
                 <p>{t("ana.value")}: {"★".repeat(d.profile.value_tier)}{"☆".repeat(5 - d.profile.value_tier)}</p>

@@ -45,28 +45,65 @@ def reload() -> None:
     _weights.cache_clear()
 
 
-def _state_mult(lead: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _state_mult(lead: np.ndarray,
+                style: dict | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Per-sim intensity multipliers for the (home, away) sides given home's
-    current lead. Leading team eases ~10-15%, trailing pushes — bounded."""
+    current lead. Leading team eases ~10-15%, trailing pushes — bounded.
+
+    Style conditioning (literature directions, bounded by config):
+    - a COUNTER team that leads keeps part of its threat (transitions into
+      the space the chasing opponent leaves) -> its ease-off is reduced;
+    - chasing INTO a LOW BLOCK is less productive -> the trailing side's
+      push bump is damped when the leading opponent sits in a block.
+    """
     s = settings.sim_state_effect          # e.g. 0.12
-    # home multiplier: leading -> down, trailing -> up
-    mh = np.where(lead > 0, 1 - s, np.where(lead < 0, 1 + s, 1.0))
-    ma = np.where(lead < 0, 1 - s, np.where(lead > 0, 1 + s, 1.0))
+    sh = sa = s                            # ease-off per side when leading
+    ph, pa = s, s                          # push bump per side when trailing
+    if style:
+        hold = settings.style_sim_lead_hold
+        damp = settings.style_sim_chase_damp
+        if style.get("home", {}).get("counter"):
+            sh = s * (1 - hold)            # home leads: eases off less
+        if style.get("away", {}).get("counter"):
+            sa = s * (1 - hold)
+        if style.get("away", {}).get("low_block"):
+            ph = s * (1 - damp)            # home chases into away's block
+        if style.get("home", {}).get("low_block"):
+            pa = s * (1 - damp)
+    mh = np.where(lead > 0, 1 - sh, np.where(lead < 0, 1 + ph, 1.0))
+    ma = np.where(lead < 0, 1 - sa, np.where(lead > 0, 1 + pa, 1.0))
     # amplify slightly for 2+ goal gaps
     big = np.abs(lead) >= 2
-    mh = np.where(big & (lead > 0), 1 - 1.5 * s, np.where(big & (lead < 0), 1 + 1.5 * s, mh))
-    ma = np.where(big & (lead < 0), 1 - 1.5 * s, np.where(big & (lead > 0), 1 + 1.5 * s, ma))
+    mh = np.where(big & (lead > 0), 1 - 1.5 * sh, np.where(big & (lead < 0), 1 + 1.5 * ph, mh))
+    ma = np.where(big & (lead < 0), 1 - 1.5 * sa, np.where(big & (lead > 0), 1 + 1.5 * pa, ma))
     return mh, ma
+
+
+def _style_minute_curve(w: np.ndarray, press: bool) -> np.ndarray:
+    """High-press sides front-load scoring intensity and fade late (press
+    drops with fatigue — measured sprint-demand literature). Mass-preserving
+    tilt: early minutes up, final third down, renormalized."""
+    if not press:
+        return w
+    shift = settings.style_sim_press_early
+    m = np.arange(len(w))
+    tilt = 1.0 + shift * (1 - 2 * m / (len(w) - 1))   # +shift at 0', -shift at 90'
+    out = w * tilt
+    return out * (w.sum() / out.sum())
 
 
 def simulate(lam_h: float, lam_a: float, *, n: int = 20000,
              start_min: int = 0, score: tuple[int, int] = (0, 0),
              reds: tuple[int, int] = (0, 0), lam_cv: float = 0.0,
+             style: dict | None = None,
              seed: int | None = None) -> dict:
     """Run N minute-by-minute sims from (start_min, score). Returns final-
-    score distribution + scenario probabilities."""
+    score distribution + scenario probabilities. `style` (optional, from
+    style_adjust.sim_modifiers) conditions state response and timing."""
     rng = np.random.default_rng(seed)
     w = _weights()
+    wh = _style_minute_curve(w, bool(style and style["home"].get("high_press")))
+    wa = _style_minute_curve(w, bool(style and style["away"].get("high_press")))
     start_min = max(0, min(89, start_min))
 
     # base per-team λ, optionally with parameter uncertainty (Gamma, mean λ)
@@ -91,9 +128,9 @@ def simulate(lam_h: float, lam_a: float, *, n: int = 20000,
 
     for m in range(start_min, 90):
         lead = gh - ga
-        mh, ma = _state_mult(lead)
-        ih = lh * w[m] * mh * rd
-        ia = la * w[m] * ma * ra_
+        mh, ma = _state_mult(lead, style)
+        ih = lh * wh[m] * mh * rd
+        ia = la * wa[m] * ma * ra_
         dh = rng.poisson(ih)
         da = rng.poisson(ia)
         gh = gh + dh

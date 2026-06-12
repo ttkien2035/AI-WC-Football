@@ -59,6 +59,13 @@ def count(prefix: str) -> int:
     return row[0] if row else 0
 
 
+def keys(prefix: str) -> list[str]:
+    with _lock, _conn() as c:
+        rows = c.execute("SELECT k FROM cache WHERE k LIKE ?",
+                         (prefix + "%",)).fetchall()
+    return [r[0] for r in rows]
+
+
 def age(key: str):
     with _lock, _conn() as c:
         row = c.execute("SELECT ts FROM cache WHERE k=?", (key,)).fetchone()

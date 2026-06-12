@@ -103,6 +103,16 @@ class Settings(BaseSettings):
     # in-tournament via pipeline review)
     style_adjust_enabled: bool = True
     style_total_max: float = 0.06   # max |lambda adjustment| from style matchup
+    # style -> W/D/L supremacy (Elo-equivalent, literature-direction priors,
+    # graded by the factor scorecard like every other nudge)
+    style_sup_enabled: bool = True
+    style_sup_max_elo: float = 18.0
+    style_sup_draw_bump: float = 0.012  # possession-mirror slight draw tilt
+    # style-conditioned minute simulation (state response by team traits)
+    style_sim_enabled: bool = True
+    style_sim_lead_hold: float = 0.35   # counter team leading: keeps this share of its ease-off
+    style_sim_chase_damp: float = 0.30  # chasing INTO a low block: bump damped by this
+    style_sim_press_early: float = 0.06 # high-press: scoring intensity shifted early
 
     # Match-context layer (final-group-game stakes / dead rubber / seeding)
     context_adjust_enabled: bool = True

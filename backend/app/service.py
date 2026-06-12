@@ -390,7 +390,15 @@ async def predict(home: str, away: str, minute: int | None = None,
     from .engine import strength_prior
     seed_d_h = strength_prior.pot_shrink_delta(home, teams[home]["elo"], teams[home]["played"])
     seed_d_a = strength_prior.pot_shrink_delta(away, teams[away]["elo"], teams[away]["played"])
-    elo_adjust = (-pen_h + seed_d_h, -pen_a + seed_d_a)
+    # style-matchup W/D/L nudge (Elo-equivalent; counter-vs-possession,
+    # press-vs-buildup, possession-mirror draw tilt) — bounded & audited
+    from .engine import style_adjust as _sa
+    sup = _sa.supremacy_elo_delta(
+        home, away,
+        teams[home]["elo"] - pen_h + seed_d_h,
+        teams[away]["elo"] - pen_a + seed_d_a)
+    elo_adjust = (-pen_h + seed_d_h + sup["home"],
+                  -pen_a + seed_d_a + sup["away"])
     rc = (fixture or {}).get("red_cards") or {}
     red_cards = (rc.get("home", 0), rc.get("away", 0))
 
@@ -422,8 +430,8 @@ async def predict(home: str, away: str, minute: int | None = None,
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
-        elo_h=teams[home]["elo"] - pen_h + seed_d_h,
-        elo_a=teams[away]["elo"] - pen_a + seed_d_a,
+        elo_h=teams[home]["elo"] - pen_h + seed_d_h + sup["home"],
+        elo_a=teams[away]["elo"] - pen_a + seed_d_a + sup["away"],
         home_stats=teams[home], away_stats=teams[away],
         lg_avg_per_team=lg_avg,
         market=market,
@@ -434,7 +442,7 @@ async def predict(home: str, away: str, minute: int | None = None,
         stage=stage, rho=ml_ensemble.dc_rho(),
         style_factor=sf,
         context_factor=ctx["factor"] * ven["factor"],  # venue folded into λ
-        draw_bump=ctx.get("draw_bump", 0.0),
+        draw_bump=ctx.get("draw_bump", 0.0) + sup.get("draw_bump", 0.0),
     )
     if pen_h or pen_a:
         pred["absence_penalty"] = {"home": {"elo": -pen_h, "players": kp_h},
@@ -462,7 +470,12 @@ async def predict(home: str, away: str, minute: int | None = None,
         pred["scorelines"] = match_model.top_scorelines(m_rec)
         pred["_recon_matrix"] = m_rec    # reused for consistent market lines
 
-    pred["components"]["style"] = {"total_factor": sf, "reason": sf_reason}
+    pred["components"]["style"] = {
+        "total_factor": sf, "reason": sf_reason,
+        "supremacy": {k: sup[k] for k in ("home", "away", "draw_bump")}
+        if sup.get("reason") else None,
+        "supremacy_reason": sup.get("reason"),
+    }
     pred["components"]["context"] = {
         "factor": round(ctx["factor"], 3),
         "stakes": ctx.get("stakes"), "seeding": ctx.get("seeding"),
@@ -500,12 +513,14 @@ async def predict(home: str, away: str, minute: int | None = None,
     # ---- Dixon-Robinson minute-by-minute scenario simulation ----
     # (validated equal to the matrix on W/D/L RPS, so headline stays from the
     # blend above; the sim adds the scenario timeline the matrix can't give)
+    sim_style = style_adjust.sim_modifiers(home, away, eh, ea)
     if minute is None:
         sim = match_sim.simulate(lam_h, lam_a, n=settings.sim_runs,
-                                  lam_cv=settings.sim_lambda_cv)
+                                  lam_cv=settings.sim_lambda_cv, style=sim_style)
     else:
         sim = match_sim.simulate(lam_h, lam_a, n=settings.sim_runs,
-                                  start_min=minute, score=(hg, ag), reds=red_cards)
+                                  start_min=minute, score=(hg, ag),
+                                  reds=red_cards, style=sim_style)
     pred["simulation"] = {
         "probs": sim["probs"], "scorelines": sim["scorelines"],
         "exp_goals": sim["exp_goals"], "scenarios": sim["scenarios"],
@@ -681,9 +696,12 @@ def timeline(match_id: int) -> list[dict]:
 
 async def analysis(home: str, away: str) -> dict:
     """Tactical analysis: curated profiles + live lineups + key-player
-    availability + full squads. Style is display-only (no calibratable data
-    for internationals); absences/red cards are what feed the prediction."""
+    availability + full squads. Style now FEEDS the prediction through three
+    bounded, scorecard-audited channels (O/U factor, supremacy Elo nudge,
+    sim state response), with tags confirmed/vetoed by observed tournament
+    stats (engine/observed_style); absences/red cards remain Elo penalties."""
     from . import team_profiles
+    from .engine import observed_style as _obs_style
     teams = await get_teams()
     if home not in teams or away not in teams:
         raise ValueError("unknown team")
@@ -707,6 +725,8 @@ async def analysis(home: str, away: str) -> dict:
         out[tla] = {
             "profile": prof,
             "manager_note": MANAGER_NOTES.get(tla),
+            "observed_style": _obs_style.observed(tla),
+            "effective_style": sorted(_obs_style.effective_tags(tla)[0]),
             "lineup": lu_side,                       # None until announced
             "formation_live": (lu_side or {}).get("formation"),
             "key_players": kps,

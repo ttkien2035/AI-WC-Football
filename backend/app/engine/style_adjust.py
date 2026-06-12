@@ -15,9 +15,29 @@ from ..team_profiles import PROFILES
 DEFENSIVE = {"low_block", "counter"}
 ATTACKING = {"possession", "high_press"}
 
+# Manager tactical identities that MODIFY the team's effective style
+# (curated, notable benches only; audited like every other style effect).
+# pragmatic: tilts toward containment when not the favourite;
+# proactive: adds pressing intent regardless of opponent.
+MANAGER_STYLE = {
+    "FRA": "pragmatic", "MAR": "pragmatic", "MEX": "pragmatic",
+    "CRO": "pragmatic", "UZB": "pragmatic", "ENG": "pragmatic",
+    "ESP": "proactive", "GER": "proactive", "AUT": "proactive",
+    "USA": "proactive", "CAN": "proactive", "URY": "proactive",
+}
 
-def _tags(tla: str) -> set:
-    return set((PROFILES.get(tla) or {}).get("style") or [])
+
+def _tags(tla: str, is_favourite: bool | None = None) -> set:
+    """Effective style tags: curated, confirmed/vetoed/extended by observed
+    in-tournament data (engine/observed_style), then the manager identity."""
+    from .observed_style import effective_tags
+    tags, _ = effective_tags(tla)
+    m = MANAGER_STYLE.get(tla)
+    if m == "pragmatic" and is_favourite is False:
+        tags.add("low_block")          # pragmatic bench, not favoured -> contain
+    if m == "proactive":
+        tags.add("high_press")
+    return tags
 
 
 def total_goals_factor(home_tla: str, away_tla: str) -> tuple[float, str | None]:
@@ -57,6 +77,67 @@ def corners_share_bump(home_tla: str, away_tla: str) -> tuple[float, float]:
         return b
 
     return earn(th, ta), earn(ta, th)
+
+
+def supremacy_elo_delta(home_tla: str, away_tla: str,
+                        elo_h: float, elo_a: float) -> dict:
+    """Style-matchup W/D/L adjustment expressed as Elo-equivalent deltas
+    (reuses the absence/prior plumbing). Literature directions, small caps:
+
+    1. counter/low-block underdog vs possession favourite: transitions into
+       the space the favourite leaves -> underdog gets a bounded bump;
+    2. high-press side vs a low-possession/direct opponent whose build-up
+       feeds the press -> press side gets a bounded bump;
+    3. two possession teams: no supremacy edge, slight draw tilt (fewer
+       transitions either way).
+
+    Returns {home, away, draw_bump, reason}; all zeros when disabled.
+    """
+    out = {"home": 0.0, "away": 0.0, "draw_bump": 0.0, "reason": None}
+    if not (settings.style_adjust_enabled and settings.style_sup_enabled):
+        return out
+    gap = elo_h - elo_a
+    fav_h = gap >= 0
+    th = _tags(home_tla, is_favourite=fav_h)
+    ta = _tags(away_tla, is_favourite=not fav_h)
+    cap = settings.style_sup_max_elo
+
+    # 1) counter underdog vs possession favourite (needs a real gap)
+    if abs(gap) >= 60:
+        dog, fav = (away_tla, home_tla) if fav_h else (home_tla, away_tla)
+        td, tf = (ta, th) if fav_h else (th, ta)
+        if (td & DEFENSIVE) and ("possession" in tf):
+            key = "away" if dog == away_tla else "home"
+            out[key] += cap
+            out["reason"] = "counter_vs_possession"
+    # 2) press vs pressable build-up
+    if "high_press" in th and ("direct" in ta or "low_block" in ta):
+        out["home"] += cap * 0.6
+        out["reason"] = out["reason"] or "press_vs_buildup"
+    if "high_press" in ta and ("direct" in th or "low_block" in th):
+        out["away"] += cap * 0.6
+        out["reason"] = out["reason"] or "press_vs_buildup"
+    # 3) possession mirror -> slight draw tilt
+    if "possession" in th and "possession" in ta:
+        out["draw_bump"] = settings.style_sup_draw_bump
+        out["reason"] = out["reason"] or "possession_mirror"
+    return out
+
+
+def sim_modifiers(home_tla: str, away_tla: str,
+                  elo_h: float, elo_a: float) -> dict | None:
+    """Per-side style traits for the minute simulator's state response.
+    {side: {"counter": bool, "low_block": bool, "high_press": bool}}"""
+    if not (settings.style_adjust_enabled and settings.style_sim_enabled):
+        return None
+    fav_h = elo_h >= elo_a
+    out = {}
+    for side, tla, fav in (("home", home_tla, fav_h), ("away", away_tla, not fav_h)):
+        tags = _tags(tla, is_favourite=fav)
+        out[side] = {"counter": "counter" in tags,
+                     "low_block": "low_block" in tags,
+                     "high_press": "high_press" in tags}
+    return out
 
 
 # One-line tactical identities for notable coaches (analysis panel + chatbot)

@@ -46,16 +46,28 @@ def _factor_counterfactuals(pred: dict) -> dict:
             m_cf = match_model.score_matrix(lh / f, la / f, rho=rho)
             out[name] = {"factor": f, "over25_with": ov_with,
                          "over25_without": round(_over25(m_cf), 4)}
-    pd_ = ((comp.get("seed") or {}).get("prior_delta")) or {}
-    dh, da = pd_.get("home", 0.0), pd_.get("away", 0.0)
     arts = ml_ensemble._artifacts()
-    if arts and arts.get("rates") and (dh or da):
+
+    def _sup_cf(dh: float, da: float) -> dict | None:
+        """Counterfactual W/D/L removing an Elo-equivalent (dh, da) nudge."""
+        if not (arts and arts.get("rates") and (dh or da)):
+            return None
         shift = arts["rates"]["b"] * (dh - da) / 100.0
         m_cf = match_model.score_matrix(lh * math.exp(-shift),
                                         la * math.exp(shift), rho=rho)
-        out["prior"] = {"delta": {"home": dh, "away": da},
-                        "probs_with": match_model.matrix_outcomes(m_with),
-                        "probs_without": match_model.matrix_outcomes(m_cf)}
+        return {"delta": {"home": dh, "away": da},
+                "probs_with": match_model.matrix_outcomes(m_with),
+                "probs_without": match_model.matrix_outcomes(m_cf)}
+
+    pd_ = ((comp.get("seed") or {}).get("prior_delta")) or {}
+    cf = _sup_cf(pd_.get("home", 0.0), pd_.get("away", 0.0))
+    if cf:
+        out["prior"] = cf
+    sup = (comp.get("style") or {}).get("supremacy") or {}
+    cf = _sup_cf(sup.get("home", 0.0), sup.get("away", 0.0))
+    if cf:
+        cf["reason"] = (comp.get("style") or {}).get("supremacy_reason")
+        out["style_sup"] = cf
     return out
 
 PREMATCH_WINDOW_H = 12       # snapshot anything kicking off within 12h
@@ -102,6 +114,7 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "lineup_aware": lineup_known,
             # factor scorecard + meta-calibration inputs (graded post-match):
             "factors": _factor_counterfactuals(pred),
+            "scenarios": (pred.get("simulation") or {}).get("scenarios"),
             "components": {k: comp.get(k) for k in ("ml", "market", "poisson")
                            if comp.get(k)},
             "weights": comp.get("weights"),
@@ -334,7 +347,7 @@ def factor_scorecard(matches: list[dict]) -> dict:
     delta < 0 means the factor IS helping. n counts only matches where the
     factor actually fired."""
     agg = {k: {"n": 0, "with": 0.0, "without": 0.0}
-           for k in ("style", "context", "venue", "prior")}
+           for k in ("style", "context", "venue", "prior", "style_sup")}
     for m in matches:
         if m["status"] != "FINISHED" or m["score"]["home"] is None:
             continue
@@ -351,15 +364,16 @@ def factor_scorecard(matches: list[dict]) -> dict:
                 agg[k]["n"] += 1
                 agg[k]["with"] += (f["over25_with"] - over) ** 2
                 agg[k]["without"] += (f["over25_without"] - over) ** 2
-        if fac.get("prior"):
-            p = fac["prior"]
-            agg["prior"]["n"] += 1
-            agg["prior"]["with"] += _rps(p["probs_with"], actual)
-            agg["prior"]["without"] += _rps(p["probs_without"], actual)
+        for k in ("prior", "style_sup"):
+            if fac.get(k):
+                p = fac[k]
+                agg[k]["n"] += 1
+                agg[k]["with"] += _rps(p["probs_with"], actual)
+                agg[k]["without"] += _rps(p["probs_without"], actual)
     out = {}
     for k, a in agg.items():
         n = a["n"]
-        row = {"n": n, "metric": "rps" if k == "prior" else "brier"}
+        row = {"n": n, "metric": "rps" if k in ("prior", "style_sup") else "brier"}
         if n:
             w, wo = a["with"] / n, a["without"] / n
             row.update({"with": round(w, 4), "without": round(wo, 4),
@@ -371,6 +385,58 @@ def factor_scorecard(matches: list[dict]) -> dict:
             row["verdict"] = "no_data"
         out[k] = row
     return out
+
+
+def sim_timing_scorecard(matches: list[dict]) -> dict:
+    """Grade the minute-simulator's SCENARIO probabilities against what
+    actually happened (goal minutes from the match-log incidents). This is
+    where the style-conditioned simulation proves itself: late goals,
+    comebacks and clean sheets are timing/state properties the closed-form
+    matrix cannot express."""
+    keys = ("late_goal_80plus", "home_comeback",
+            "clean_sheet_home", "clean_sheet_away")
+    agg = {k: {"n": 0, "p_sum": 0.0, "hits": 0, "brier": 0.0} for k in keys}
+    for m in matches:
+        if m["status"] != "FINISHED" or m["score"]["home"] is None:
+            continue
+        pm, _ = cache.get_stale(f"prematch:{m['id']}")
+        sc = (pm or {}).get("scenarios")
+        if not sc:
+            continue
+        gh, ga = m["score"]["home"], m["score"]["away"]
+        log_e, _ = cache.get_stale(f"matchlog:{m['id']}")
+        inc = (log_e or {}).get("incidents") or m.get("incidents") or []
+        goals = sorted((i for i in inc if i.get("type") == "goal"
+                        and i.get("minute") is not None),
+                       key=lambda i: i["minute"])
+        # timing facts need the incident list to be complete
+        timing_ok = len(goals) == gh + ga
+        lead, led_away = 0, False
+        for g in goals:
+            lead += 1 if g.get("side") == "home" else -1
+            led_away |= lead < 0
+        actuals = {
+            "late_goal_80plus": (any(g["minute"] >= 80 for g in goals)
+                                 if timing_ok else None),
+            "home_comeback": (led_away and gh > ga) if timing_ok else None,
+            "clean_sheet_home": ga == 0,
+            "clean_sheet_away": gh == 0,
+        }
+        for k in keys:
+            p, actual = sc.get(k), actuals[k]
+            if p is None or actual is None:
+                continue
+            a = agg[k]
+            a["n"] += 1
+            a["p_sum"] += p
+            a["hits"] += int(actual)
+            a["brier"] += (p - float(actual)) ** 2
+    return {k: ({"n": a["n"],
+                 "pred_mean": round(a["p_sum"] / a["n"], 3),
+                 "actual_rate": round(a["hits"] / a["n"], 3),
+                 "brier": round(a["brier"] / a["n"], 4)}
+                if a["n"] else {"n": 0})
+            for k, a in agg.items()}
 
 
 async def status() -> dict:
@@ -421,6 +487,7 @@ async def status() -> dict:
         },
         "elo_movers": movers[:10],
         "factor_scorecard": factor_scorecard(matches),
+        "sim_timing": sim_timing_scorecard(matches),
         "meta_weights": meta_weights.recompute_if_stale(matches),
         "sources": await service.sources_status(),
     }

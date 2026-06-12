@@ -160,6 +160,31 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
             <p className="mt-1 text-[10px] text-slate-400">{t("pl.sc_note")}</p>
           </div>
         )}
+        {/* minute-sim timing calibration: scenario probs vs actual timing */}
+        {status.sim_timing && Object.values(status.sim_timing).some((v) => v.n > 0) && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.sim_timing")}</p>
+            <table className="w-full text-xs tabular-nums">
+              <thead>
+                <tr className="text-left text-slate-400">
+                  <th className="py-0.5">{t("pl.st_scenario")}</th><th>n</th>
+                  <th>{t("pl.st_pred")}</th><th>{t("pl.st_actual")}</th><th>Brier</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(status.sim_timing).filter(([, v]) => v.n > 0).map(([k, v]) => (
+                  <tr key={k} className="border-t border-slate-100 dark:border-white/10">
+                    <td className="py-1">{t(`pl.st_${k}`)}</td>
+                    <td>{v.n}</td>
+                    <td>{v.pred_mean != null ? pct(v.pred_mean) : "–"}</td>
+                    <td>{v.actual_rate != null ? pct(v.actual_rate) : "–"}</td>
+                    <td>{v.brier?.toFixed(3) ?? "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
         {/* meta-calibrated blend weights */}
         {status.meta_weights && (
           <div className="mt-3">

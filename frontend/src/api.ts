@@ -55,6 +55,11 @@ export type Analysis = {
     formation_live: string | null;
     key_players: KeyPlayer[];
     absence_elo_penalty: number;
+    observed_style: {
+      n: number; confidence: number; possession: number; shots: number;
+      crosses: number; fouls: number; xg_for: number; xg_against: number;
+    } | null;
+    effective_style: string[] | null;
     squad: { name: string; position: string | null }[];
     elo: number; fifa_rank: number | null;
   }>;
@@ -246,6 +251,9 @@ export type PipelineStatus = {
   factor_scorecard: Record<string, {
     n: number; metric: string; with?: number; without?: number;
     delta?: number; verdict: string;
+  }>;
+  sim_timing: Record<string, {
+    n: number; pred_mean?: number; actual_rate?: number; brier?: number;
   }>;
   meta_weights: {
     enabled: boolean; active?: boolean; n: number; reason?: string;
