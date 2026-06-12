@@ -1,6 +1,6 @@
 """Per-match prediction: Elo-driven Poisson goals, blended with market odds,
 Elo win expectancy and form. Generalized from the repo's original
-prediction_utils.py / mci_ars_predictor.py math.
+the original single-match MCI-ARS prototype this repo started from.
 """
 import math
 import numpy as np
