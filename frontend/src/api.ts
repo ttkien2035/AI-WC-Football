@@ -260,6 +260,7 @@ export type PipelineStatus = {
   corners_scorecard: {
     n: number; brier: number | null; hit_rate: number | null;
     pred_mean_total: number | null; actual_mean_total: number | null;
+    club_base: number; observed_mean: number | null; adaptive_base: number;
   };
   meta_weights: {
     enabled: boolean; active?: boolean; n: number; reason?: string;

@@ -122,7 +122,8 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
             share_bump: tuple[float, float] = (0.0, 0.0),
             total_factor: float = 1.0,
             priors: tuple[tuple[float, float], tuple[float, float]] =
-            ((5.2, 5.2), (5.2, 5.2))) -> dict:
+            ((5.2, 5.2), (5.2, 5.2)),
+            base: float | None = None) -> dict:
     """Corners model. Each side's count is a confidence-weighted blend of:
       • a heuristic base (attack intensity from lambda x Elo dominance share),
       • how many corners the side EARNS (observed for_avg, else style prior),
@@ -131,7 +132,7 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
     `total_factor` is the style-matchup multiplier on the total (crossfest vs
     starved); `priors` are style cold-start (for, against) per side."""
     intensity = ((lam_h + lam_a) / settings.goals_mu) ** 0.7
-    total = settings.corners_base * intensity * total_factor
+    total = (base if base is not None else settings.corners_base) * intensity * total_factor
     we = elo_expected(elo_h, elo_a)            # dominance proxy
     share_h = 0.35 + 0.30 * we                 # 0.35..0.65
     # style bumps (wing-play/possession earn; low-block opponents concede)

@@ -169,6 +169,10 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
               {" · "}Brier <b>{status.corners_scorecard.brier ?? "–"}</b>
               {" · "}{t("pl.cs_pred")} {status.corners_scorecard.pred_mean_total} {t("pl.cs_vs")} {status.corners_scorecard.actual_mean_total}
             </p>
+            <p className="mt-0.5 text-[11px] tabular-nums text-slate-400">
+              🔄 {t("pl.cs_adapt")}: {status.corners_scorecard.club_base} → <b>{status.corners_scorecard.adaptive_base}</b>
+              {status.corners_scorecard.observed_mean != null && <> ({t("pl.cs_obs")} {status.corners_scorecard.observed_mean})</>}
+            </p>
           </div>
         )}
         {/* minute-sim timing calibration: scenario probs vs actual timing */}

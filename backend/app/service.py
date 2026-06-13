@@ -173,6 +173,33 @@ def record_corner_stats(matches: list[dict]) -> None:
             cache.put(key, hist)
 
 
+def observed_corner_mean() -> tuple[float, int] | None:
+    """Tournament-wide mean TOTAL corners per finished match (self-learning
+    signal): the club-fitted base over-predicts WC corners, so we measure the
+    real level as matches accumulate."""
+    totals = []
+    for key in cache.keys("matchlog:"):
+        e, _ = cache.get_stale(key)
+        c = (e or {}).get("corners") or {}
+        if c.get("home") is not None and c.get("away") is not None:
+            totals.append(c["home"] + c["away"])
+    return (sum(totals) / len(totals), len(totals)) if totals else None
+
+
+def adaptive_corners_base() -> float:
+    """Club-fitted base shrunk toward the observed in-tournament mean, weight
+    n/(n+K) — adapts the corner level to WC reality after every match while a
+    handful of games can't yank it around. OFF -> static club base."""
+    if not settings.corners_adapt_enabled:
+        return settings.corners_base
+    obs = observed_corner_mean()
+    if not obs:
+        return settings.corners_base
+    mean, n = obs
+    w = n / (n + settings.corners_adapt_k)
+    return round((1 - w) * settings.corners_base + w * mean, 3)
+
+
 def corner_rates(tla: str) -> dict | None:
     """Per-team in-tournament corner profile: earned, conceded, and crosses
     per game (the concede rate feeds the OPPONENT's expected corners)."""
@@ -524,7 +551,8 @@ async def predict(home: str, away: str, minute: int | None = None,
         score_diff=abs(hg - ag) if minute is not None else 0,
         share_bump=style_adjust.corners_share_bump(home, away),
         total_factor=c_total_factor,
-        priors=(style_adjust.corner_prior(home), style_adjust.corner_prior(away)))
+        priors=(style_adjust.corner_prior(home), style_adjust.corner_prior(away)),
+        base=adaptive_corners_base())
     if c_total_reason:
         pred["corners"]["style_total"] = {"factor": c_total_factor,
                                           "reason": c_total_reason}
@@ -653,7 +681,8 @@ async def odds_board(limit: int = 24) -> dict:
             team_rates=(corner_rates(h), corner_rates(a)),
             share_bump=style_adjust.corners_share_bump(h, a),
             total_factor=style_adjust.corners_total_factor(h, a)[0],
-            priors=(style_adjust.corner_prior(h), style_adjust.corner_prior(a)))
+            priors=(style_adjust.corner_prior(h), style_adjust.corner_prior(a)),
+            base=adaptive_corners_base())
 
         row = {
             "match_id": m["id"], "utcDate": m["utcDate"], "stage": m["stage"],

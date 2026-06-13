@@ -269,6 +269,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "pl.cs_hit": { vi: "trúng cửa", en: "hit-rate" },
   "pl.cs_pred": { vi: "tổng dự đoán TB", en: "pred avg total" },
   "pl.cs_vs": { vi: "vs thực tế", en: "vs actual" },
+  "pl.cs_adapt": { vi: "base tự thích nghi (prior quốc tế → theo data WC)", en: "self-adapting base (intl prior → WC data)" },
+  "pl.cs_obs": { vi: "quan sát", en: "observed" },
   "pl.sim_timing": { vi: "Mô phỏng phút: kịch bản dự đoán vs diễn biến thật", en: "Minute-sim: scenario probs vs actual timing" },
   "pl.st_scenario": { vi: "Kịch bản", en: "Scenario" },
   "pl.st_pred": { vi: "Dự đoán TB", en: "Pred mean" },

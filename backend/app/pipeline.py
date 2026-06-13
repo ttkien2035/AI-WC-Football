@@ -13,6 +13,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from . import cache, service
+from .config import settings
 from .engine import match_model, meta_weights, ml_ensemble
 
 
@@ -475,12 +476,17 @@ def corners_scorecard(matches: list[dict]) -> dict:
         brier += (v["p_over"] - over) ** 2
         hits += int(v.get("hit", False))
         graded += 1
+    obs = service.observed_corner_mean()
     return {
         "n": n,
         "brier": round(brier / n, 4) if n else None,
         "hit_rate": round(hits / graded, 3) if graded else None,
         "pred_mean_total": round(pred_tot / tot_n, 2) if tot_n else None,
         "actual_mean_total": round(act_tot / tot_n, 2) if tot_n else None,
+        # self-learning transparency: how the base has adapted to WC corners
+        "club_base": settings.corners_base,
+        "observed_mean": round(obs[0], 2) if obs else None,
+        "adaptive_base": service.adaptive_corners_base(),
     }
 
 

@@ -166,7 +166,14 @@ class Settings(BaseSettings):
 
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
-    corners_base: float = 9.67       # fitted: 9k club matches (validated vs intl avg)
+    # international-tournament prior (WC2022 8.94, Euro2024 9.75, ~EPL 9.9
+    # -> intl avg ~9.4); was 9.67 club-leaning. Adapts to WC-2026 reality.
+    corners_base: float = 9.4
+    # adaptive base: blend the prior with the observed tournament mean, n/(n+k).
+    # k kept high (conservative): a few cagey openers must NOT slash the base —
+    # corners regress to the ~9 international norm as the tournament opens up.
+    corners_adapt_enabled: bool = True
+    corners_adapt_k: float = 20.0    # ~20 matches before observed carries half
     corners_dispersion: float = 1.96 # NB var/mean — corners are ~2x overdispersed
     corners_h1_share: float = 0.46
     # style-matchup multiplier on TOTAL corners (crossfest vs starved)
