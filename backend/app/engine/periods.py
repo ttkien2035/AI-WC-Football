@@ -139,27 +139,39 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
     share_h = min(0.7, max(0.3, share_h + share_bump[0] - share_bump[1]))
     c_h, c_a = total * share_h, total * (1 - share_h)
 
-    # per-side: blend heuristic base with (own earned + opponent conceded),
-    # weighted by how much real data the two teams have played
+    # per-side estimate built from the MECHANISM of corners, not the noisy raw
+    # count. Each side's "earn" rate = style-implied (wing-play, manager intent)
+    # refined by observed CROSSING volume (crosses -> corners; crosses are far
+    # less noisy than corner counts), then only SLOWLY corrected by the raw
+    # corners it has actually recorded (raw_k large => trusted gradually).
+    def earn_rate(r, prior_earn):
+        implied = prior_earn
+        if r and r.get("cross_avg"):           # crossing volume is the stable driver
+            implied = 0.5 * implied + 0.5 * r["cross_avg"] * settings.corners_cross_to_corner
+        g = (r or {}).get("games", 0)
+        if g and r.get("for_avg") is not None:
+            w = g / (g + settings.corners_raw_k)
+            return (1 - w) * implied + w * r["for_avg"]
+        return implied
+
+    def concede_rate(r, prior_conc):
+        g = (r or {}).get("games", 0)
+        if g and r.get("against_avg") is not None:
+            w = g / (g + settings.corners_raw_k)
+            return (1 - w) * prior_conc + w * r["against_avg"]
+        return prior_conc
+
     sides = ((0, 1, c_h), (1, 0, c_a))
     out_c = [c_h, c_a]
-    for me, opp, base in sides:
+    for me, opp, base_side in sides:
         r_me, r_opp = team_rates[me], team_rates[opp]
-        earn = (r_me.get("for_avg") if r_me and r_me.get("games")
-                else priors[me][0])
-        concede = (r_opp.get("against_avg") if r_opp and r_opp.get("against_avg") is not None
-                   else priors[opp][1])
-        obs = 0.5 * earn + 0.5 * concede       # corners I take ~ I earn + you concede
-        # crossing-volume nudge (bounded): high crosser earns more corners
-        if r_me and r_me.get("cross_avg"):
-            cf = 1.0 + max(-settings.corners_cross_max, min(
-                settings.corners_cross_max,
-                (r_me["cross_avg"] - settings.corners_cross_ref)
-                * settings.corners_cross_slope))
-            obs *= cf
-        g = ((r_me or {}).get("games", 0) + (r_opp or {}).get("games", 0))
-        w = g / (g + 3.0)                      # data confidence
-        out_c[me] = (1 - w) * base + w * obs
+        mech = 0.5 * earn_rate(r_me, priors[me][0]) \
+            + 0.5 * concede_rate(r_opp, priors[opp][1])
+        # blend mechanism with the λ-heuristic base by how much data the two
+        # sides have (early: trust the style/crossing mechanism over a thin base)
+        g_all = (r_me or {}).get("games", 0) + (r_opp or {}).get("games", 0)
+        w = g_all / (g_all + 2.0)
+        out_c[me] = (1 - w) * base_side + w * mech
     c_h, c_a = out_c
     total = c_h + c_a
 

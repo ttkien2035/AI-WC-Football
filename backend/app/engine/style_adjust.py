@@ -102,17 +102,29 @@ def corners_total_factor(home_tla: str, away_tla: str) -> tuple[float, str | Non
     return f, reason
 
 
-# Style cold-start corner priors (per game) before a team has tournament data.
-def corner_prior(tla: str) -> tuple[float, float]:
-    """(for_base, against_base) per game seeded from style tags, replacing the
-    flat 5.2 until observed rates take over."""
+# Style-implied corner rate (per side, per game) — the MECHANISM behind
+# corners (wing play, crossing, manager intent), not the noisy raw count.
+def corner_prior(tla: str, half_base: float = 4.85) -> tuple[float, float]:
+    """(earn_base, concede_base) per game from playing style + manager identity.
+    half_base ~ half the tournament corner level. Wing-play/possession/crossing
+    sides earn more; low-block sides concede more; manager intent shifts it."""
     tags = _tags(tla)
-    base = 5.2
-    fr = base + (0.8 if "wing_play" in tags else 0.0) + (0.5 if "possession" in tags else 0.0) \
-        - (0.5 if "counter" in tags else 0.0)
-    ag = base + (0.8 if "low_block" in tags else 0.0) + (0.4 if "counter" in tags else 0.0) \
-        - (0.4 if "high_press" in tags else 0.0)
-    return round(fr, 2), round(ag, 2)
+    fr = half_base + (0.8 if "wing_play" in tags else 0.0) \
+        + (0.5 if "possession" in tags else 0.0) \
+        + (0.3 if "high_press" in tags else 0.0) \
+        - (0.5 if "counter" in tags else 0.0) \
+        - (0.3 if "low_block" in tags else 0.0)
+    ag = half_base + (0.8 if "low_block" in tags else 0.0) \
+        + (0.4 if "counter" in tags else 0.0) \
+        - (0.4 if "high_press" in tags else 0.0) \
+        - (0.2 if "possession" in tags else 0.0)
+    m = MANAGER_STYLE.get(tla)
+    if m == "proactive":          # press/attack-minded -> more crosses & corners
+        fr += 0.4
+    elif m == "pragmatic":        # containment-minded -> fewer earned, more conceded
+        fr -= 0.3
+        ag += 0.3
+    return round(max(fr, 1.5), 2), round(max(ag, 1.5), 2)
 
 
 def supremacy_elo_delta(home_tla: str, away_tla: str,

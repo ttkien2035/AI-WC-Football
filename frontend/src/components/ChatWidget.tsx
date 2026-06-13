@@ -230,24 +230,30 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-x-0 bottom-0 z-50 flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur pb-safe sm:inset-x-auto sm:bottom-[5.5rem] sm:right-4 sm:h-[560px] sm:max-h-[75vh] sm:w-[380px] sm:max-w-[93vw] sm:rounded-2xl sm:pb-0 dark:border-slate-700 dark:bg-slate-900/95"
+            className="fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:inset-auto sm:bottom-[5.5rem] sm:right-4 sm:h-[560px] sm:max-h-[75vh] sm:w-[380px] sm:max-w-[93vw] sm:rounded-2xl sm:border dark:border-slate-700 dark:bg-slate-900/95"
           >
             {/* header */}
-            <div className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-3 text-white">
+            <div className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-sky-600 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white sm:pt-3">
               <span className="flex items-center gap-1.5 text-sm font-bold">
                 ⚽ {t("chat.title")} <Sparkles size={14} className="text-amber-300" />
               </span>
-              <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums"
-                    title={`${remaining ?? "?"}/${limit}`}>
-                <MessageSquare size={12} className="text-amber-300" />
-                <span className={(remaining ?? 0) > 0 ? "text-white" : "text-white/50"}>
-                  {remaining ?? "?"}
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums"
+                      title={`${remaining ?? "?"}/${limit}`}>
+                  <MessageSquare size={12} className="text-amber-300" />
+                  <span className={(remaining ?? 0) > 0 ? "text-white" : "text-white/50"}>
+                    {remaining ?? "?"}
+                  </span>
                 </span>
-              </span>
+                <button onClick={() => setOpen(false)} aria-label="Close"
+                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15">
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* messages */}
-            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-3 text-sm">
+            <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 text-sm [-webkit-overflow-scrolling:touch]">
               <div className="rounded-2xl rounded-tl-sm bg-slate-100 p-3 dark:bg-slate-800">
                 <Md text={liveNow ? t("chat.greeting_live") : t("chat.greeting", { n: limit })} />
               </div>
@@ -310,7 +316,7 @@ export default function ChatWidget() {
             )}
 
             {/* input */}
-            <div className="border-t border-slate-200 p-2.5 dark:border-slate-700">
+            <div className="border-t border-slate-200 p-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))] dark:border-slate-700 sm:pb-2.5">
               <div className="flex gap-2">
                 <input
                   value={input}
@@ -318,7 +324,7 @@ export default function ChatWidget() {
                   onKeyDown={(e) => e.key === "Enter" && send(input)}
                   placeholder={t("chat.placeholder")}
                   disabled={streaming || (remaining ?? 0) <= 0}
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800"
+                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-base outline-none focus:border-emerald-500 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 sm:text-sm"
                 />
                 <button onClick={() => send(input)}
                   disabled={streaming || !input.trim() || (remaining ?? 0) <= 0}

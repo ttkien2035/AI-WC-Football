@@ -53,8 +53,8 @@ class Settings(BaseSettings):
     chat_model: str = "gemini-2.5-flash"
     chat_daily_per_user: int = 10
     chat_daily_global: int = 300
-    chat_max_output_tokens: int = 512
-    chat_analysis_max_output_tokens: int = 900  # analytical answers run longer
+    chat_max_output_tokens: int = 850   # room for a full match breakdown + verdict
+    chat_analysis_max_output_tokens: int = 1100  # deep-think answers run longer
     chat_think_budget: int = 3072    # Gemini thinking tokens for analysis intent
     chat_analysis_rounds: int = 5    # tool rounds allowed for analytical questions
 
@@ -179,10 +179,12 @@ class Settings(BaseSettings):
     # style-matchup multiplier on TOTAL corners (crossfest vs starved)
     corners_style_enabled: bool = True
     corners_style_max: float = 0.12
-    # crossing-volume nudge: corners scale with crosses above the reference
-    corners_cross_ref: float = 14.0   # ~league-average crosses per team per game
-    corners_cross_slope: float = 0.02 # per cross above/below ref
-    corners_cross_max: float = 0.12   # bounded
+    # corners are predicted from the MECHANISM (crossing volume + style), not
+    # the noisy raw count: a team's crosses/game map to corners by this ratio
+    # (crosses ~16-18/g/team, corners ~4.7 -> ~0.28), and the raw corner count
+    # is trusted only slowly (large raw_k) since 1-2 games are noisy.
+    corners_cross_to_corner: float = 0.28
+    corners_raw_k: float = 6.0
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4
 
