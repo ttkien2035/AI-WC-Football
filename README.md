@@ -97,6 +97,8 @@ Final pre-match blend: market odds (de-vigged) 40% / ML ensemble 40% / Poisson 1
                     └─────────────────────────────────────────────┘
 ```
 
+📐 **How every prediction factor is derived (fitted-from-data vs bounded prior), the StatsBomb fits, and the self-correction loop:** see [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
+
 ## 📡 Data sources
 
 | Source | Role | Key |
