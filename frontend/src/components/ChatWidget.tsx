@@ -190,7 +190,7 @@ export default function ChatWidget() {
       </AnimatePresence>
 
       {/* FAB + persistent label */}
-      <div className="fixed bottom-5 right-5 z-50 flex items-center gap-2">
+      <div className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom))] right-5 z-50 flex items-center gap-2">
         {!open && (
           <motion.button
             onClick={() => { dismissTeaser(); setOpen(true); }}
@@ -228,7 +228,7 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 24, scale: 0.96 }}
             transition={{ duration: 0.18 }}
-            className="fixed bottom-[5.5rem] right-4 z-50 flex h-[560px] max-h-[75vh] w-[380px] max-w-[93vw] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95"
+            className="fixed inset-x-0 bottom-0 z-50 flex h-[88dvh] w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-white/95 shadow-2xl backdrop-blur pb-safe sm:inset-x-auto sm:bottom-[5.5rem] sm:right-4 sm:h-[560px] sm:max-h-[75vh] sm:w-[380px] sm:max-w-[93vw] sm:rounded-2xl sm:pb-0 dark:border-slate-700 dark:bg-slate-900/95"
           >
             {/* header */}
             <div className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-3 text-white">

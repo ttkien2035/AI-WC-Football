@@ -88,7 +88,7 @@ export default function App() {
 
   return (
     <div className="mx-auto max-w-7xl px-3 pb-28 sm:px-4 sm:pb-20">
-      <header className="sticky top-0 z-10 -mx-4 mb-4 border-b border-slate-200/70 bg-white/70 px-4 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#060913]/75">
+      <header className="sticky top-0 z-10 -mx-3 mb-4 border-b border-slate-200/70 bg-white/70 px-3 py-3 backdrop-blur-xl pt-safe sm:-mx-4 sm:px-4 dark:border-white/10 dark:bg-[#060913]/75">
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
             <Trophy className="text-amber-500 drop-shadow-[0_0_8px_rgba(245,158,11,0.6)]" size={24} />
