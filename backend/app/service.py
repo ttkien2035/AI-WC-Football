@@ -376,6 +376,8 @@ async def latest_simulation() -> dict | None:
 
 async def predict(home: str, away: str, minute: int | None = None,
                   hg: int = 0, ag: int = 0) -> dict:
+    from .static_data import canon_tla
+    home, away = canon_tla(home), canon_tla(away)   # tolerate feed TLA variants
     teams = await get_teams()
     if home not in teams or away not in teams:
         raise ValueError(f"Unknown team TLA: {home if home not in teams else away}")
@@ -767,6 +769,8 @@ async def analysis(home: str, away: str) -> dict:
     stats (engine/observed_style); absences/red cards remain Elo penalties."""
     from . import team_profiles
     from .engine import observed_style as _obs_style
+    from .static_data import canon_tla
+    home, away = canon_tla(home), canon_tla(away)   # tolerate feed TLA variants
     teams = await get_teams()
     if home not in teams or away not in teams:
         raise ValueError("unknown team")

@@ -164,3 +164,19 @@ ODDS_NAME_TO_TLA = {
     "dr congo": "COD", "congo dr": "COD", "democratic republic of the congo": "COD",
     "curacao": "CUW", "uruguay": "URY", "turkiye": "TUR", "turkey": "TUR",
 }
+
+# Variant 3-letter codes that external feeds (football-data.org / LiveScore)
+# sometimes emit for the same team — mapped to our canonical TLA so a fixture
+# or a predict request can never 404 on a code mismatch (e.g. fd briefly used
+# CUR for Curaçao, our canonical is CUW).
+TLA_ALIASES = {
+    "CUR": "CUW",   # Curaçao (extend as feeds reveal more mismatches)
+}
+
+
+def canon_tla(tla: str | None) -> str | None:
+    """Map an external/variant TLA to our canonical one (no-op if unknown)."""
+    if not tla:
+        return tla
+    t = tla.upper()
+    return TLA_ALIASES.get(t, t)

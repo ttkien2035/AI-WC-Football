@@ -2,6 +2,7 @@
 import httpx
 from .. import cache
 from ..config import settings
+from ..static_data import canon_tla
 
 COMP = "WC"
 
@@ -55,9 +56,9 @@ def simplify_match(m: dict) -> dict:
         "matchday": m.get("matchday"),
         "venue": m.get("venue"),
         "home": {"id": m["homeTeam"]["id"], "name": m["homeTeam"]["name"],
-                 "tla": m["homeTeam"]["tla"], "crest": m["homeTeam"]["crest"]},
+                 "tla": canon_tla(m["homeTeam"]["tla"]), "crest": m["homeTeam"]["crest"]},
         "away": {"id": m["awayTeam"]["id"], "name": m["awayTeam"]["name"],
-                 "tla": m["awayTeam"]["tla"], "crest": m["awayTeam"]["crest"]},
+                 "tla": canon_tla(m["awayTeam"]["tla"]), "crest": m["awayTeam"]["crest"]},
         "score": {"home": ft["home"], "away": ft["away"],
                   "winner": m["score"].get("winner"),
                   "duration": m["score"].get("duration")},
@@ -87,8 +88,9 @@ async def teams_from_standings() -> dict[str, dict]:
         group = (block.get("group") or "").replace("Group ", "")
         for row in block.get("table", []):
             t = row["team"]
-            out[t["tla"]] = {
-                "id": t["id"], "name": t["name"], "tla": t["tla"],
+            tla = canon_tla(t["tla"])
+            out[tla] = {
+                "id": t["id"], "name": t["name"], "tla": tla,
                 "crest": t.get("crest"), "group": group,
                 "position": row["position"], "played": row["playedGames"],
                 "won": row["won"], "draw": row["draw"], "lost": row["lost"],
