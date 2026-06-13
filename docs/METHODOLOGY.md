@@ -205,3 +205,26 @@ StatsBomb open data is used under their license — attribution: StatsBomb.
 
 All predictions are statistical estimates for research and reference — not
 betting advice.
+
+
+## 8. Negative result: graph / style embeddings (tested, not adopted)
+
+We tested whether a **passing-network style embedding** (per-team fingerprint
+of pass length, forward/final-third/cross/long-ball ratios, pressing, possession
+— from the 314 StatsBomb matches) carries predictive signal **beyond raw team
+strength**, via leave-one-tournament-out CV (`ml/style_embed_proto.py`):
+
+| | strength only | + style embedding |
+|---|---|---|
+| Outcome RPS | 0.2376 | 0.2381 (worse +0.0005) |
+| Total-goals MAE | 1.645 | 1.654 (worse +0.008) |
+
+**Verdict: no incremental value at this scale** — it slightly *hurts* (added
+noise). This is consistent with §3.2 (style adds nothing to totals beyond shots)
+and with the football literature: outcomes are strength-dominated and high
+variance, so a GNN / graph-embedding layer for outcome/totals would face the
+same low ceiling with greater overfitting risk. The one genuinely useful
+graph — the team-result network — is **already exploited by Elo / pi-ratings**
+(rating propagation over the head-to-head graph). We therefore keep the
+calibrated ensemble and did **not** wire graph features into production. The
+prototype is retained as a reproducible negative result.

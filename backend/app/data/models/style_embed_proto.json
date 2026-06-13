@@ -1,0 +1,8 @@
+{
+ "n_test_matches": 314,
+ "outcome_rps_base": 0.2376,
+ "outcome_rps_with_style": 0.2381,
+ "total_mae_base": 1.6453,
+ "total_mae_with_style": 1.6535,
+ "verdict": "NO incremental value beyond strength at this scale"
+}
