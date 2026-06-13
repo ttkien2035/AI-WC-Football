@@ -43,39 +43,54 @@ def _weights() -> np.ndarray:
 
 def reload() -> None:
     _weights.cache_clear()
+    _state_table.cache_clear()
+
+
+_SIMFIT = Path(__file__).resolve().parents[1] / "data" / "models" / "sim_fit.json"
+
+
+@lru_cache(maxsize=1)
+def _state_table() -> dict:
+    """Score-state scoring multipliers, FITTED (strength-controlled Poisson on
+    314 intl matches, ml/statsbomb_sim_fit.py): leading shows no significant
+    ease-off (capped 1.0); trailing genuinely pushes (+0.35 at 1, +0.47 at 2).
+    Falls back to the old symmetric hand-set effect if the artifact is absent."""
+    try:
+        m = json.loads(_SIMFIT.read_text())["serving_mult"]
+        return {1: float(m["lead1"]), 2: float(m["lead2"]),
+                -1: float(m["trail1"]), -2: float(m["trail2"])}
+    except Exception:
+        s = settings.sim_state_effect
+        return {1: 1 - s, 2: 1 - 1.5 * s, -1: 1 + s, -2: 1 + 1.5 * s}
 
 
 def _state_mult(lead: np.ndarray,
                 style: dict | None = None) -> tuple[np.ndarray, np.ndarray]:
-    """Per-sim intensity multipliers for the (home, away) sides given home's
-    current lead. Leading team eases ~10-15%, trailing pushes — bounded.
-
-    Style conditioning (literature directions, bounded by config):
-    - a COUNTER team that leads keeps part of its threat (transitions into
-      the space the chasing opponent leaves) -> its ease-off is reduced;
-    - chasing INTO a LOW BLOCK is less productive -> the trailing side's
-      push bump is damped when the leading opponent sits in a block.
-    """
-    s = settings.sim_state_effect          # e.g. 0.12
-    sh = sa = s                            # ease-off per side when leading
-    ph, pa = s, s                          # push bump per side when trailing
+    """Per-sim scoring multipliers for (home, away) given home's current lead,
+    from the fitted score-state table. Style conditioning (bounded, hand-set
+    pending a per-style fit): a COUNTER team that leads keeps more threat; a
+    side chasing INTO a LOW BLOCK has its push damped."""
+    t = _state_table()
+    # base multiplier per side by its own goal margin (level -> 1.0)
+    def side_mult(margin: np.ndarray) -> np.ndarray:
+        out = np.ones_like(margin, dtype=float)
+        out = np.where(margin == 1, t[1], out)
+        out = np.where(margin >= 2, t[2], out)
+        out = np.where(margin == -1, t[-1], out)
+        out = np.where(margin <= -2, t[-2], out)
+        return out
+    mh, ma = side_mult(lead), side_mult(-lead)
     if style:
-        hold = settings.style_sim_lead_hold
-        damp = settings.style_sim_chase_damp
+        hold = settings.style_sim_lead_hold     # counter leader keeps threat
+        damp = settings.style_sim_chase_damp     # chasing a low block is harder
         if style.get("home", {}).get("counter"):
-            sh = s * (1 - hold)            # home leads: eases off less
+            mh = np.where(lead > 0, mh + hold * (1 - mh), mh)
         if style.get("away", {}).get("counter"):
-            sa = s * (1 - hold)
+            ma = np.where(lead < 0, ma + hold * (1 - ma), ma)
         if style.get("away", {}).get("low_block"):
-            ph = s * (1 - damp)            # home chases into away's block
+            mh = np.where(lead < 0, 1 + (mh - 1) * (1 - damp), mh)
         if style.get("home", {}).get("low_block"):
-            pa = s * (1 - damp)
-    mh = np.where(lead > 0, 1 - sh, np.where(lead < 0, 1 + ph, 1.0))
-    ma = np.where(lead < 0, 1 - sa, np.where(lead > 0, 1 + pa, 1.0))
-    # amplify slightly for 2+ goal gaps
-    big = np.abs(lead) >= 2
-    mh = np.where(big & (lead > 0), 1 - 1.5 * sh, np.where(big & (lead < 0), 1 + 1.5 * ph, mh))
-    ma = np.where(big & (lead < 0), 1 - 1.5 * sa, np.where(big & (lead > 0), 1 + 1.5 * pa, ma))
+            ma = np.where(lead > 0, 1 + (ma - 1) * (1 - damp), ma)
     return mh, ma
 
 

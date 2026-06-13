@@ -1,0 +1,28 @@
+{
+ "n_matches": 314,
+ "naive_mult_confounded": {
+  "lead2": 1.81,
+  "lead1": 1.186,
+  "trail1": 1.186,
+  "trail2": 1.05
+ },
+ "controlled_mult": {
+  "lead2": 1.435,
+  "lead1": 1.146,
+  "trail1": 1.347,
+  "trail2": 1.466
+ },
+ "controlled_p": {
+  "lead2": 0.0033,
+  "lead1": 0.1763,
+  "trail1": 0.003,
+  "trail2": 0.0136
+ },
+ "serving_mult": {
+  "lead2": 1.0,
+  "lead1": 1.0,
+  "trail1": 1.347,
+  "trail2": 1.466
+ },
+ "note": "raw rate-by-state is confounded (strong teams lead+score); these are strength-controlled (Poisson offset on team xG). Leading side capped <=1.0 (residual momentum confound); trailing push adopted where significant."
+}
