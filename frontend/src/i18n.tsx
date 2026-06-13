@@ -350,7 +350,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
     en: "🔴 A match is LIVE now! Ask me about it — or any other fixture.",
   },
   "chat.placeholder": { vi: "Hỏi về trận đấu, tỉ lệ, kèo…", en: "Ask about matches, odds, predictions…" },
-  "chat.thinking": { vi: "Đang phân tích…", en: "Analyzing…" },
+  "chat.thinking": { vi: "Đang xử lý…", en: "Thinking…" },
+  "chat.analyzing": { vi: "🧠 Đang phân tích sâu, tổng hợp nhiều nguồn…", en: "🧠 Deep-analyzing across sources…" },
   "chat.quota_out": {
     vi: "⚡ Bạn đã dùng hết {n} câu hôm nay. Quay lại ngày mai nhé! Trong lúc chờ, khám phá tab Dự đoán trận & Tỉ lệ kèo.",
     en: "⚡ You've used all {n} questions today. Come back tomorrow! Meanwhile, explore the Match Sim & Odds tabs.",

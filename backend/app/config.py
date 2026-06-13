@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     chat_daily_per_user: int = 10
     chat_daily_global: int = 300
     chat_max_output_tokens: int = 512
+    chat_analysis_max_output_tokens: int = 900  # analytical answers run longer
+    chat_think_budget: int = 3072    # Gemini thinking tokens for analysis intent
+    chat_analysis_rounds: int = 5    # tool rounds allowed for analytical questions
 
     fd_base: str = "https://api.football-data.org/v4"
     odds_base: str = "https://api.the-odds-api.com/v4"

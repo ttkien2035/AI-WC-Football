@@ -21,6 +21,23 @@ log = logging.getLogger("chat")
 
 GEMINI = "https://generativelanguage.googleapis.com/v1beta/models"
 MAX_TOOL_ROUNDS = 3
+
+# Questions that warrant deep multi-source synthesis (turn on Gemini thinking,
+# more tool rounds, a longer answer + a mandatory verdict). Keep cheap lookups
+# ("khi nào", "đội hình", "tỉ số") on the fast path with thinking off.
+_ANALYSIS_KW = (
+    "phân tích", "phan tich", "nhận định", "nhan dinh", "soi kèo", "soi keo",
+    "nên chọn", "nen chon", "nên đặt", "đánh giá", "danh gia", "so sánh",
+    "so sanh", "dự đoán", "du doan", "ai thắng", "ai se thang", "cửa nào",
+    "kèo nào", "có nên", "khuyến nghị", "tư vấn", "deep", "chi tiết",
+    "analy", "predict", "recommend", "should i", "who will win", "vs ",
+    "value", "đáng", "lời khuyên",
+)
+
+
+def wants_analysis(message: str | None) -> bool:
+    m = (message or "").lower()
+    return any(k in m for k in _ANALYSIS_KW)
 KEY_COOLDOWN_S = 6 * 3600     # quota-hit keys sit out; free RPD resets daily
 
 
@@ -191,6 +208,11 @@ TOOL_DECLS = [
      "parameters": {"type": "object", "properties": {
          "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách")},
          "required": ["home", "away"]}},
+    {"name": "get_match_dossier",
+     "description": "ONE-CALL full analysis bundle for a fixture — use this for any 'phân tích/soi kèo/nhận định/nên chọn' question instead of 5 separate calls. Returns the model prediction (W/D/L, λ/xG, top scorelines, O/U & corners lines with confidence, BTTS), the volatility (P result flips vs HT), key scenarios (late goal/comeback/clean sheet), context+venue+style factors, key absences, head-to-head history, and the bookmaker-vs-model value gaps. Synthesize a verdict from this.",
+     "parameters": {"type": "object", "properties": {
+         "home": _team_arg("Đội nhà"), "away": _team_arg("Đội khách")},
+         "required": ["home", "away"]}},
     {"name": "what_if",
      "description": "Scenario simulator: force a hypothetical result for a group match and re-run 20,000 tournament simulations; returns how title/advancement odds shift.",
      "parameters": {"type": "object", "properties": {
@@ -223,6 +245,7 @@ TOOL_LABELS = {
     "get_group_standings": ("Xem cục diện bảng đấu", "Fetching group standings"),
     "get_h2h_record": ("Tra lịch sử đối đầu", "Checking head-to-head"),
     "get_market_odds": ("So kèo thị trường vs model", "Comparing market vs model odds"),
+    "get_match_dossier": ("Tổng hợp hồ sơ trận để phân tích", "Building full match dossier"),
     "what_if": ("Mô phỏng kịch bản giả định (20k sims)", "Simulating what-if scenario (20k sims)"),
     "get_wc_info": ("Tra thông tin World Cup 2026", "Looking up World Cup 2026 info"),
     "get_wc_news": ("Tin nóng World Cup 2026", "Fetching World Cup 2026 news"),
@@ -349,6 +372,36 @@ async def _exec_tool(name: str, args: dict) -> dict:
                             "market": r.get("market"), "fair": r["fair"],
                             "value_flags": r.get("value")}
             return {"error": "no odds for this matchup yet"}
+        if name == "get_match_dossier":
+            h, a = _resolve2(args)
+            p = await service.predict(h, a)
+            comp = p.get("components", {})
+            dossier = {
+                "home": h, "away": a, "probs": p["probs"],
+                "expected_goals": p["lambdas"],
+                "top_scores": p["scorelines"][:3], "over25": p["over25"],
+                "btts": p.get("btts"),
+                "ou_lines": p.get("market_lines"),
+                "corners": (p.get("corners") or {}).get("expected"),
+                "volatility": p.get("volatility"),
+                "scenarios": (p.get("simulation") or {}).get("scenarios"),
+                "context": comp.get("context"), "venue": comp.get("venue"),
+                "style": comp.get("style"), "seed": comp.get("seed"),
+                "key_absences": p.get("absence_penalty"),
+                "elo": p["elo"],
+            }
+            try:
+                dossier["h2h"] = evaluation.h2h(h, a, n=6)
+            except Exception:
+                pass
+            board = await service.odds_board(limit=40)
+            for r in board["matches"]:
+                if {r["home"]["tla"], r["away"]["tla"]} == {h, a}:
+                    dossier["market_vs_model"] = {
+                        "market": r.get("market"), "fair": r["fair"],
+                        "value_flags": r.get("value")}
+                    break
+            return dossier
         if name == "what_if":
             h, a = _resolve2(args)
             return await service.simulate_what_if(
@@ -436,10 +489,20 @@ SKILLS = {
 
 
 # ── system prompt ────────────────────────────────────────────────────────
-def _system(lang: str) -> str:
+def _system(lang: str, analysis: bool = False) -> str:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    analyst_block = """
+ANALYSIS MODE (this is an analytical question — think before you answer):
+- Call get_match_dossier FIRST for the fixture — it bundles prediction, O/U & corners lines, volatility, scenarios, factors, H2H and the market-vs-model value gaps in one shot. Add get_expected_lineups / get_wc_news only if they'd change the read.
+- SYNTHESIZE across sources — don't just list numbers. Weigh the model probs against the market: where the model's fair odds beat the bookmaker line, that's the value; say so explicitly.
+- You MUST end the analysis (before the FOLLOWUPS line) with a verdict block, in the user's language, formatted exactly:
+  🎯 Nhận định: <the lean — winner / O-U / BTTS as relevant> · độ tự tin <toss_up|lean|clear>
+  ▸ Lý do: <2-3 short bullets tying the call to concrete factors: Elo/value gap, style matchup, venue/heat, volatility, absences>
+  ▸ Lưu ý: <volatility/biến động or any caveat> — tham khảo thống kê, không phải lời khuyên cá cược.
+- Be decisive but honest: on a genuine 50-50 say so. If volatility.level is high, the verdict must soften the pick.
+"""
     return f"""You are "WC Analyst" — the in-app football analyst of an AI World Cup 2026 prediction platform. Now: {now}. Tournament: FIFA World Cup 2026 (48 teams, Jun 11 - Jul 19).
-
+{analyst_block if analysis else ""}
 RULES:
 - Use the provided tools for EVERY app-model number you cite (probabilities, odds, Elo, simulations). Never invent statistics. If a tool errors, say what you couldn't fetch.
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
@@ -448,7 +511,7 @@ RULES:
 - If the user names ONE team and asks about "its match" (e.g. "kèo Canada tối nay", "Canada đá với ai", "phân tích trận của X", "next match of X") WITHOUT naming the opponent, DO NOT ask who the opponent is — you can find it: first call get_live_and_today and/or get_upcoming_fixtures with team=X to discover their nearest live/today/next fixture, then immediately chain get_match_prediction (+ get_market_odds) on that matchup and analyze. Only say there is no match if that team genuinely has no live/scheduled fixture. Never bounce a one-team question back to the user.
 - When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean. If volatility.level is "high", warn that the result has a high chance of flipping vs half-time (quote scenarios.ht_flip) and soften the pick accordingly.
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
-- Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
+- Answer in the SAME language as the user's question (Vietnamese or English). Warm, expert; light emoji; short bullet lists for numbers. Quick lookups: be concise (<=180 words). Analytical questions: be thorough but tight (<=320 words) and finish with the verdict block.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.
 - Predictions are statistical estimates — when relevant, append a one-line reminder that this is reference, not betting advice.
 - End your reply with one line exactly: FOLLOWUPS: q1 | q2 (two short follow-up questions in the user's language). This line will be hidden from the user.
@@ -511,6 +574,15 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
         contents.append({"role": "user", "parts": [{"text": (message or "")[:600]}]})
         tools = [{"function_declarations": TOOL_DECLS}]
 
+    # analytical questions: deep-think, more tool rounds, longer answer
+    analysis = skill is None and wants_analysis(message)
+    think_budget = settings.chat_think_budget if analysis else 0
+    max_rounds = settings.chat_analysis_rounds if analysis else MAX_TOOL_ROUNDS
+    max_out = (settings.chat_analysis_max_output_tokens if analysis
+               else settings.chat_max_output_tokens)
+    if analysis:
+        yield json.dumps({"type": "thinking"}) + "\n"
+
     full_text = []
     news_sources: list[dict] = []
     # Holdback emitter: never let the trailing "FOLLOWUPS: ..." line reach the
@@ -544,17 +616,17 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
         return [out] if out else []
 
     async with httpx.AsyncClient(timeout=60) as client:
-        for round_i in range(MAX_TOOL_ROUNDS + 1):
+        for round_i in range(max_rounds + 1):
             body = {
-                "system_instruction": {"parts": [{"text": _system(lang)}]},
+                "system_instruction": {"parts": [{"text": _system(lang, analysis)}]},
                 "contents": contents,
                 "generationConfig": {
-                    "maxOutputTokens": settings.chat_max_output_tokens,
+                    "maxOutputTokens": max_out,
                     "temperature": 0.6,
-                    "thinkingConfig": {"thinkingBudget": 0},
+                    "thinkingConfig": {"thinkingBudget": think_budget},
                 },
             }
-            if tools and round_i < MAX_TOOL_ROUNDS:
+            if tools and round_i < max_rounds:
                 body["tools"] = tools
 
             fn_calls, model_parts = [], []

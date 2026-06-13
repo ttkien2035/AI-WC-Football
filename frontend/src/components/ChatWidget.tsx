@@ -7,7 +7,7 @@ import { getVisitorId } from "../visitor";
 
 type ToolStep = { name: string; label: string; done: boolean };
 type Src = { title: string; url: string };
-type Msg = { role: "user" | "bot"; text: string; tools: ToolStep[]; sources?: Src[] };
+type Msg = { role: "user" | "bot"; text: string; tools: ToolStep[]; sources?: Src[]; thinking?: boolean };
 
 /** markdown-lite: **bold**, bullet lines, newlines */
 function Md({ text }: { text: string }) {
@@ -124,7 +124,9 @@ export default function ChatWidget() {
           setMsgs((prev) => {
             const out = [...prev];
             const bot = { ...out[out.length - 1] };
-            if (ev.type === "tool") {
+            if (ev.type === "thinking") {
+              bot.thinking = true;
+            } else if (ev.type === "tool") {
               bot.tools = [...bot.tools.map((x) => ({ ...x, done: true })),
                            { name: ev.name, label: lang === "vi" ? ev.label_vi : ev.label_en, done: false }];
             } else if (ev.type === "delta") {
@@ -267,7 +269,8 @@ export default function ChatWidget() {
                       ? <Md text={m.text} />
                       : m.role === "bot" && (
                           <span className="flex items-center gap-1.5 text-slate-400">
-                            <Loader2 size={13} className="animate-spin" /> {t("chat.thinking")}
+                            <Loader2 size={13} className="animate-spin" />
+                            {m.thinking ? t("chat.analyzing") : t("chat.thinking")}
                           </span>
                         )}
                     {m.role === "bot" && streaming && i === msgs.length - 1 && m.text && (
