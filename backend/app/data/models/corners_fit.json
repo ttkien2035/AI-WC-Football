@@ -1,0 +1,27 @@
+{
+ "n_rows": 628,
+ "corners_per_team_mean": 4.535,
+ "corners_total_mean": 9.07,
+ "corr": {
+  "crosses": 0.528,
+  "possession": 0.507,
+  "shots": 0.579,
+  "xg": 0.269,
+  "pressures": -0.175
+ },
+ "cross_to_corner_ratio": 0.389,
+ "poisson": {
+  "const": 0.2257,
+  "crosses": 0.016,
+  "possession": 1.2484,
+  "shots": 0.0323
+ },
+ "comps": [
+  "WC2022",
+  "WC2018",
+  "Euro2024",
+  "Euro2020",
+  "Copa2024",
+  "AFCON2023"
+ ]
+}

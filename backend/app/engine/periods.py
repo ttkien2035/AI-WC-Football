@@ -9,11 +9,26 @@ these are parametric models (documented constants from large-sample football
 averages) — corners get team-specific calibration from in-tournament
 LiveScore stats as games accumulate.
 """
+import json
 import math
+from functools import lru_cache
+from pathlib import Path
 
 import numpy as np
 
 from ..config import settings
+
+_FIT = Path(__file__).resolve().parents[1] / "data" / "models" / "corners_fit.json"
+
+
+@lru_cache(maxsize=1)
+def _cross_to_corner() -> float:
+    """Fitted crosses->corners ratio (StatsBomb, ml/statsbomb_fit.py); falls
+    back to the config value. Re-running the fit auto-updates serving."""
+    try:
+        return float(json.loads(_FIT.read_text())["cross_to_corner_ratio"])
+    except Exception:
+        return settings.corners_cross_to_corner
 from .match_model import score_matrix, top_scorelines, matrix_outcomes, elo_expected
 
 WDL = ("home", "draw", "away")
@@ -147,7 +162,7 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
     def earn_rate(r, prior_earn):
         implied = prior_earn
         if r and r.get("cross_avg"):           # crossing volume is the stable driver
-            implied = 0.5 * implied + 0.5 * r["cross_avg"] * settings.corners_cross_to_corner
+            implied = 0.5 * implied + 0.5 * r["cross_avg"] * _cross_to_corner()
         g = (r or {}).get("games", 0)
         if g and r.get("for_avg") is not None:
             w = g / (g + settings.corners_raw_k)

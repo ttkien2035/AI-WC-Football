@@ -166,9 +166,9 @@ class Settings(BaseSettings):
 
     # Period / corners model (engine/periods.py)
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
-    # international-tournament prior (WC2022 8.94, Euro2024 9.75, ~EPL 9.9
-    # -> intl avg ~9.4); was 9.67 club-leaning. Adapts to WC-2026 reality.
-    corners_base: float = 9.4
+    # FITTED from 314 modern men's international matches (StatsBomb event data,
+    # ml/statsbomb_fit.py): mean total corners = 9.07/game. Adapts to WC-2026.
+    corners_base: float = 9.07
     # adaptive base: blend the prior with the observed tournament mean, n/(n+k).
     # k kept high (conservative): a few cagey openers must NOT slash the base —
     # corners regress to the ~9 international norm as the tournament opens up.
@@ -179,11 +179,11 @@ class Settings(BaseSettings):
     # style-matchup multiplier on TOTAL corners (crossfest vs starved)
     corners_style_enabled: bool = True
     corners_style_max: float = 0.12
-    # corners are predicted from the MECHANISM (crossing volume + style), not
-    # the noisy raw count: a team's crosses/game map to corners by this ratio
-    # (crosses ~16-18/g/team, corners ~4.7 -> ~0.28), and the raw corner count
-    # is trusted only slowly (large raw_k) since 1-2 games are noisy.
-    corners_cross_to_corner: float = 0.28
+    # corners predicted from the MECHANISM (crossing volume + style), not the
+    # noisy raw count. cross->corner ratio FITTED at 0.389 on 314 intl matches
+    # (StatsBomb; was a hand-set 0.28) — overridden at runtime by the value in
+    # corners_fit.json if present. Raw corner count trusted only slowly (raw_k).
+    corners_cross_to_corner: float = 0.389
     corners_raw_k: float = 6.0
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4

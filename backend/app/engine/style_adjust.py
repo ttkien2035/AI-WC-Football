@@ -103,27 +103,22 @@ def corners_total_factor(home_tla: str, away_tla: str) -> tuple[float, str | Non
 
 
 # Style-implied corner rate (per side, per game) — the MECHANISM behind
-# corners (wing play, crossing, manager intent), not the noisy raw count.
-def corner_prior(tla: str, half_base: float = 4.85) -> tuple[float, float]:
-    """(earn_base, concede_base) per game from playing style + manager identity.
-    half_base ~ half the tournament corner level. Wing-play/possession/crossing
-    sides earn more; low-block sides concede more; manager intent shifts it."""
+# corners. Directions/weights aligned to a StatsBomb fit on 314 intl matches
+# (ml/statsbomb_fit.py): corners_for correlates with possession (r=+0.51),
+# crosses (+0.53), shots (+0.58); pressing correlates NEGATIVELY (r=-0.18) so
+# the old high_press/manager corner bumps were DROPPED (data-contradicted).
+def corner_prior(tla: str, half_base: float = 4.54) -> tuple[float, float]:
+    """(earn_base, concede_base) per game from playing style. half_base = the
+    fitted intl mean corners/team (9.07/2). Possession & wing-play earn more;
+    low-block/counter earn fewer & concede more (they cede possession)."""
     tags = _tags(tla)
     fr = half_base + (0.8 if "wing_play" in tags else 0.0) \
         + (0.5 if "possession" in tags else 0.0) \
-        + (0.3 if "high_press" in tags else 0.0) \
         - (0.5 if "counter" in tags else 0.0) \
         - (0.3 if "low_block" in tags else 0.0)
     ag = half_base + (0.8 if "low_block" in tags else 0.0) \
         + (0.4 if "counter" in tags else 0.0) \
-        - (0.4 if "high_press" in tags else 0.0) \
         - (0.2 if "possession" in tags else 0.0)
-    m = MANAGER_STYLE.get(tla)
-    if m == "proactive":          # press/attack-minded -> more crosses & corners
-        fr += 0.4
-    elif m == "pragmatic":        # containment-minded -> fewer earned, more conceded
-        fr -= 0.3
-        ag += 0.3
     return round(max(fr, 1.5), 2), round(max(ag, 1.5), 2)
 
 
