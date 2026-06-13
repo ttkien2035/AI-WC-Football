@@ -160,6 +160,17 @@ export default function Pipeline({ onLogout }: { onLogout: () => void }) {
             <p className="mt-1 text-[10px] text-slate-400">{t("pl.sc_note")}</p>
           </div>
         )}
+        {/* corners O/U calibration */}
+        {status.corners_scorecard?.n > 0 && (
+          <div className="mt-3">
+            <p className="mb-1 text-xs font-semibold text-slate-400">{t("pl.corners_sc")}</p>
+            <p className="text-xs tabular-nums">
+              n={status.corners_scorecard.n} · {t("pl.cs_hit")} <b>{status.corners_scorecard.hit_rate != null ? pct(status.corners_scorecard.hit_rate) : "–"}</b>
+              {" · "}Brier <b>{status.corners_scorecard.brier ?? "–"}</b>
+              {" · "}{t("pl.cs_pred")} {status.corners_scorecard.pred_mean_total} {t("pl.cs_vs")} {status.corners_scorecard.actual_mean_total}
+            </p>
+          </div>
+        )}
         {/* minute-sim timing calibration: scenario probs vs actual timing */}
         {status.sim_timing && Object.values(status.sim_timing).some((v) => v.n > 0) && (
           <div className="mt-3">

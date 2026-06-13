@@ -166,6 +166,13 @@ class Settings(BaseSettings):
     corners_base: float = 9.67       # fitted: 9k club matches (validated vs intl avg)
     corners_dispersion: float = 1.96 # NB var/mean — corners are ~2x overdispersed
     corners_h1_share: float = 0.46
+    # style-matchup multiplier on TOTAL corners (crossfest vs starved)
+    corners_style_enabled: bool = True
+    corners_style_max: float = 0.12
+    # crossing-volume nudge: corners scale with crosses above the reference
+    corners_cross_ref: float = 14.0   # ~league-average crosses per team per game
+    corners_cross_slope: float = 0.02 # per cross above/below ref
+    corners_cross_max: float = 0.12   # bounded
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4
 

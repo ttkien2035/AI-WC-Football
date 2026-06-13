@@ -444,6 +444,46 @@ def sim_timing_scorecard(matches: list[dict]) -> dict:
             for k, a in agg.items()}
 
 
+def corners_scorecard(matches: list[dict]) -> dict:
+    """Aggregate corners O/U calibration: pre-kickoff P(over) at the line vs
+    the actual total. Brier + hit-rate + mean predicted/actual total, so the
+    A/B effect of the corners enhancements (concede-rate, crosses, style) is
+    measurable on real results — corners are noisy, this proves any gain."""
+    n = hits = graded = 0
+    brier = 0.0
+    pred_tot = act_tot = tot_n = 0.0
+    for m in matches:
+        if m["status"] != "FINISHED" or m["score"]["home"] is None:
+            continue
+        pm, _ = cache.get_stale(f"prematch:{m['id']}")
+        log_e, _ = cache.get_stale(f"matchlog:{m['id']}")
+        corners = m.get("corners") or (log_e or {}).get("corners")
+        c_total = (corners["home"] + corners["away"]) \
+            if corners and corners.get("home") is not None else None
+        if c_total is None:
+            continue
+        v = _corners_ou_verdict(pm, ((pm or {}).get("corners_expected") or {}).get("total"),
+                                c_total, corners)
+        if v.get("expected_total") is not None:
+            tot_n += 1
+            pred_tot += v["expected_total"]
+            act_tot += c_total
+        if v.get("p_over") is None or v.get("actual") == "push":
+            continue
+        n += 1
+        over = 1.0 if c_total > v["line"] else 0.0
+        brier += (v["p_over"] - over) ** 2
+        hits += int(v.get("hit", False))
+        graded += 1
+    return {
+        "n": n,
+        "brier": round(brier / n, 4) if n else None,
+        "hit_rate": round(hits / graded, 3) if graded else None,
+        "pred_mean_total": round(pred_tot / tot_n, 2) if tot_n else None,
+        "actual_mean_total": round(act_tot / tot_n, 2) if tot_n else None,
+    }
+
+
 async def status() -> dict:
     matches = await service.get_matches()
     now = datetime.now(timezone.utc)
@@ -492,6 +532,7 @@ async def status() -> dict:
         },
         "elo_movers": movers[:10],
         "factor_scorecard": factor_scorecard(matches),
+        "corners_scorecard": corners_scorecard(matches),
         "sim_timing": sim_timing_scorecard(matches),
         "meta_weights": meta_weights.recompute_if_stale(matches),
         "sources": await service.sources_status(),

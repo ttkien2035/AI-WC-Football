@@ -257,6 +257,10 @@ export type PipelineStatus = {
   sim_timing: Record<string, {
     n: number; pred_mean?: number; actual_rate?: number; brier?: number;
   }>;
+  corners_scorecard: {
+    n: number; brier: number | null; hit_rate: number | null;
+    pred_mean_total: number | null; actual_mean_total: number | null;
+  };
   meta_weights: {
     enabled: boolean; active?: boolean; n: number; reason?: string;
     hand: Record<string, number>; served?: Record<string, number>;

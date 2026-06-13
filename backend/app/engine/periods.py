@@ -119,27 +119,47 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
             minute: int | None = None,
             corners_so_far: dict | None = None,
             score_diff: int = 0,
-            share_bump: tuple[float, float] = (0.0, 0.0)) -> dict:
-    """Poisson corners model. Total scales with attack intensity; home share
-    follows an Elo-based dominance proxy; per-half split from config.
-    team_rates: in-tournament per-team averages (LiveScore) blended in."""
+            share_bump: tuple[float, float] = (0.0, 0.0),
+            total_factor: float = 1.0,
+            priors: tuple[tuple[float, float], tuple[float, float]] =
+            ((5.2, 5.2), (5.2, 5.2))) -> dict:
+    """Corners model. Each side's count is a confidence-weighted blend of:
+      • a heuristic base (attack intensity from lambda x Elo dominance share),
+      • how many corners the side EARNS (observed for_avg, else style prior),
+      • how many the OPPONENT CONCEDES (observed against_avg, else prior),
+      • a crossing-volume nudge (wing play -> more corners).
+    `total_factor` is the style-matchup multiplier on the total (crossfest vs
+    starved); `priors` are style cold-start (for, against) per side."""
     intensity = ((lam_h + lam_a) / settings.goals_mu) ** 0.7
-    total = settings.corners_base * intensity
+    total = settings.corners_base * intensity * total_factor
     we = elo_expected(elo_h, elo_a)            # dominance proxy
     share_h = 0.35 + 0.30 * we                 # 0.35..0.65
     # style bumps (wing-play/possession earn; low-block opponents concede)
     share_h = min(0.7, max(0.3, share_h + share_bump[0] - share_bump[1]))
     c_h, c_a = total * share_h, total * (1 - share_h)
 
-    # blend in observed tournament rates once a team has played
-    for i, (rate, base) in enumerate(zip(team_rates, (c_h, c_a))):
-        if rate and rate.get("games"):
-            w = rate["games"] / (rate["games"] + 2.0)
-            blended = (1 - w) * base + w * rate["for_avg"]
-            if i == 0:
-                c_h = blended
-            else:
-                c_a = blended
+    # per-side: blend heuristic base with (own earned + opponent conceded),
+    # weighted by how much real data the two teams have played
+    sides = ((0, 1, c_h), (1, 0, c_a))
+    out_c = [c_h, c_a]
+    for me, opp, base in sides:
+        r_me, r_opp = team_rates[me], team_rates[opp]
+        earn = (r_me.get("for_avg") if r_me and r_me.get("games")
+                else priors[me][0])
+        concede = (r_opp.get("against_avg") if r_opp and r_opp.get("against_avg") is not None
+                   else priors[opp][1])
+        obs = 0.5 * earn + 0.5 * concede       # corners I take ~ I earn + you concede
+        # crossing-volume nudge (bounded): high crosser earns more corners
+        if r_me and r_me.get("cross_avg"):
+            cf = 1.0 + max(-settings.corners_cross_max, min(
+                settings.corners_cross_max,
+                (r_me["cross_avg"] - settings.corners_cross_ref)
+                * settings.corners_cross_slope))
+            obs *= cf
+        g = ((r_me or {}).get("games", 0) + (r_opp or {}).get("games", 0))
+        w = g / (g + 3.0)                      # data confidence
+        out_c[me] = (1 - w) * base + w * obs
+    c_h, c_a = out_c
     total = c_h + c_a
 
     s1 = settings.corners_h1_share

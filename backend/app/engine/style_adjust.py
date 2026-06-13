@@ -79,6 +79,42 @@ def corners_share_bump(home_tla: str, away_tla: str) -> tuple[float, float]:
     return earn(th, ta), earn(ta, th)
 
 
+def corners_total_factor(home_tla: str, away_tla: str) -> tuple[float, str | None]:
+    """Multiplier on TOTAL corners from the style matchup (the share bump only
+    redistributes; this changes the count). Wing-play/possession sides cross
+    more -> more corners; deep blocks under pressure concede more; two
+    low-block/counter sides starve the game of corners. Bounded by config."""
+    if not (settings.style_adjust_enabled and settings.corners_style_enabled):
+        return 1.0, None
+    th, ta = _tags(home_tla), _tags(away_tla)
+    WIDE = {"wing_play", "possession"}
+    LOW = {"low_block", "counter"}
+    cap = settings.corners_style_max
+    f, reason = 1.0, None
+    h_wide, a_wide = bool(th & WIDE), bool(ta & WIDE)
+    h_low, a_low = bool(th & LOW), bool(ta & LOW)
+    if h_wide and a_wide:
+        f, reason = 1.0 + cap, "both_wide"                 # crossfest
+    elif h_low and a_low:
+        f, reason = 1.0 - cap, "both_low"                  # starved
+    elif (h_wide and a_low) or (a_wide and h_low):
+        f, reason = 1.0 + cap * 0.6, "wide_vs_block"       # forced corners
+    return f, reason
+
+
+# Style cold-start corner priors (per game) before a team has tournament data.
+def corner_prior(tla: str) -> tuple[float, float]:
+    """(for_base, against_base) per game seeded from style tags, replacing the
+    flat 5.2 until observed rates take over."""
+    tags = _tags(tla)
+    base = 5.2
+    fr = base + (0.8 if "wing_play" in tags else 0.0) + (0.5 if "possession" in tags else 0.0) \
+        - (0.5 if "counter" in tags else 0.0)
+    ag = base + (0.8 if "low_block" in tags else 0.0) + (0.4 if "counter" in tags else 0.0) \
+        - (0.4 if "high_press" in tags else 0.0)
+    return round(fr, 2), round(ag, 2)
+
+
 def supremacy_elo_delta(home_tla: str, away_tla: str,
                         elo_h: float, elo_a: float) -> dict:
     """Style-matchup W/D/L adjustment expressed as Elo-equivalent deltas

@@ -10,7 +10,8 @@ from .clients import elo as elo_client
 from .clients import livescore
 from .clients import odds as odds_client
 from .config import settings
-from .engine import match_model, match_sim, ml_ensemble, periods, tournament
+from .engine import (match_model, match_sim, ml_ensemble, periods,
+                     style_adjust, tournament)
 from .static_data import TEAMS
 
 LIVE_STATUSES = ("IN_PLAY", "PAUSED", "LIVE")
@@ -152,11 +153,13 @@ async def recent_results(n: int = 10) -> list[dict]:
 
 
 def record_corner_stats(matches: list[dict]) -> None:
-    """Persist per-team corner counts from finished matches (LiveScore data)
-    so the corners model can learn team-specific rates during the tournament."""
+    """Persist per-team corner counts (+ crosses, a documented corner driver)
+    from finished matches so the corners model learns team rates in-tournament."""
     for m in matches:
         if m["status"] != "FINISHED" or not m.get("corners"):
             continue
+        stats = m.get("stats") or {}
+        crs = stats.get("crosses") or {}
         for side, opp in (("home", "away"), ("away", "home")):
             tla = m[side]["tla"]
             if not tla or m["corners"][side] is None:
@@ -164,16 +167,29 @@ def record_corner_stats(matches: list[dict]) -> None:
             key = f"teamstats:corners:{tla}"
             hist, _ = cache.get_stale(key)
             hist = hist or {}
-            hist[str(m["id"])] = {"for": m["corners"][side], "against": m["corners"][opp]}
+            hist[str(m["id"])] = {"for": m["corners"][side],
+                                  "against": m["corners"][opp],
+                                  "crosses": crs.get(side)}
             cache.put(key, hist)
 
 
 def corner_rates(tla: str) -> dict | None:
+    """Per-team in-tournament corner profile: earned, conceded, and crosses
+    per game (the concede rate feeds the OPPONENT's expected corners)."""
     hist, _ = cache.get_stale(f"teamstats:corners:{tla}")
     if not hist:
         return None
-    fors = [v["for"] for v in hist.values() if v["for"] is not None]
-    return {"games": len(fors), "for_avg": sum(fors) / len(fors)} if fors else None
+    fors = [v["for"] for v in hist.values() if v.get("for") is not None]
+    against = [v["against"] for v in hist.values() if v.get("against") is not None]
+    crosses = [v["crosses"] for v in hist.values() if v.get("crosses") is not None]
+    if not fors:
+        return None
+    out = {"games": len(fors), "for_avg": sum(fors) / len(fors)}
+    if against:
+        out["against_avg"] = sum(against) / len(against)
+    if crosses:
+        out["cross_avg"] = sum(crosses) / len(crosses)
+    return out
 
 
 def _fingerprint(matches: list[dict], runs: int) -> str:
@@ -500,12 +516,18 @@ async def predict(home: str, away: str, minute: int | None = None,
     eh, ea = pred["elo"]["home"], pred["elo"]["away"]
     pred["halves"] = periods.halves(lam_h, lam_a, minute=minute,
                                     goals_h=hg, goals_a=ag, ht_h=ht_h, ht_a=ht_a)
+    c_total_factor, c_total_reason = style_adjust.corners_total_factor(home, away)
     pred["corners"] = periods.corners(
         lam_h, lam_a, eh, ea,
         team_rates=(corner_rates(home), corner_rates(away)),
         minute=minute, corners_so_far=corners_now,
         score_diff=abs(hg - ag) if minute is not None else 0,
-        share_bump=style_adjust.corners_share_bump(home, away))
+        share_bump=style_adjust.corners_share_bump(home, away),
+        total_factor=c_total_factor,
+        priors=(style_adjust.corner_prior(home), style_adjust.corner_prior(away)))
+    if c_total_reason:
+        pred["corners"]["style_total"] = {"factor": c_total_factor,
+                                          "reason": c_total_reason}
     pred["stage"] = stage
     pred["is_knockout"] = bool(stage and stage != "GROUP_STAGE")
     pred["knockout"] = periods.knockout(lam_h, lam_a, eh, ea)
@@ -626,9 +648,12 @@ async def odds_board(limit: int = 24) -> dict:
             ea = match_model.effective_elo(a, teams[a]["elo"])
             lam = match_model.lambdas_from_elo(eh, ea)
         o = match_model.matrix_outcomes(match_model.score_matrix(*lam, rho=ml_ensemble.dc_rho()))
-        cor = periods.corners(lam[0], lam[1],
-                              teams[h]["elo"], teams[a]["elo"],
-                              team_rates=(corner_rates(h), corner_rates(a)))
+        cor = periods.corners(
+            lam[0], lam[1], teams[h]["elo"], teams[a]["elo"],
+            team_rates=(corner_rates(h), corner_rates(a)),
+            share_bump=style_adjust.corners_share_bump(h, a),
+            total_factor=style_adjust.corners_total_factor(h, a)[0],
+            priors=(style_adjust.corner_prior(h), style_adjust.corner_prior(a)))
 
         row = {
             "match_id": m["id"], "utcDate": m["utcDate"], "stage": m["stage"],
