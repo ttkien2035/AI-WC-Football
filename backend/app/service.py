@@ -497,8 +497,11 @@ async def predict(home: str, away: str, minute: int | None = None,
     if minute is None:           # pre-match only; in-play stays score-conditioned
         mk = ml_ensemble.predict_markets(home, away, finished, elo_adjust=elo_adjust)
         if mk:
-            w_o = mk["weights"].get("over25", 0.8)
-            w_b = mk["weights"].get("btts", 0.8)
+            # head is isotonic-calibrated (holdout O/U bias +0.4pp) while the
+            # Poisson matrix over-predicts Over ~+8.5pp -> lean hard on the head
+            # (Lever 1, measured: removes the residual +2pp blend bias).
+            w_o = settings.ou_head_weight
+            w_b = settings.btts_head_weight
             pred["over25"] = round(w_o * mk["over25"] + (1 - w_o) * pred["over25"], 4)
             pred["btts"] = round(w_b * mk["btts"] + (1 - w_b) * pred["btts"], 4)
             pred["components"]["markets_head"] = {
@@ -508,7 +511,13 @@ async def predict(home: str, away: str, minute: int | None = None,
     # Tilt the score matrix to match the final W/D/L + Over2.5 + BTTS so the
     # scoreline list can't contradict the percentages shown above.
     if minute is None:
-        lh0, la0 = pred["lambdas"]["home"], pred["lambdas"]["away"]
+        # Lever 2: the Poisson total over-inflates in mismatches (convexity) ->
+        # a fitted total-goals scale calibrates the Asian-line shape across ALL
+        # lines (holdout: main O/U lines within ±0.5pp at 0.94). The displayed
+        # xG (lambdas) is unchanged; only the reconciled O/U/scoreline matrix
+        # uses the calibrated total. Marginals still pinned by reconcile.
+        s = settings.ou_total_scale
+        lh0, la0 = pred["lambdas"]["home"] * s, pred["lambdas"]["away"] * s
         m_rec = match_model.reconcile_matrix(
             match_model.score_matrix(lh0, la0, rho=ml_ensemble.dc_rho()),
             pred["probs"], pred["over25"], pred["btts"])

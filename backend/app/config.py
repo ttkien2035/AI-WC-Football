@@ -172,6 +172,14 @@ class Settings(BaseSettings):
     h1_goal_share: float = 0.45      # share of goals scored in 1st half
     # FITTED from 314 modern men's international matches (StatsBomb event data,
     # ml/statsbomb_fit.py): mean total corners = 9.07/game. Adapts to WC-2026.
+    # O/U calibration (ml/ measured on 8-9k holdout matches): the trained O/U
+    # head is isotonic-calibrated; the Poisson matrix over-predicts Over ~+8.5pp.
+    # Lever 1 — lean the O/U blend on the head; Lever 2 — scale the total-goals
+    # of the Asian-line matrix so all lines calibrate (0.94 -> main lines ±0.5pp).
+    ou_head_weight: float = 0.95
+    btts_head_weight: float = 0.9
+    ou_total_scale: float = 0.94
+
     corners_base: float = 9.07
     # adaptive base: blend the prior with the observed tournament mean, n/(n+k).
     # k kept high (conservative): a few cagey openers must NOT slash the base —
