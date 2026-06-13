@@ -232,22 +232,21 @@ export default function ChatWidget() {
             transition={{ duration: 0.18 }}
             className="fixed inset-0 z-50 flex h-[100dvh] w-full flex-col overflow-hidden border-slate-200 bg-white/95 shadow-2xl backdrop-blur sm:inset-auto sm:bottom-[5.5rem] sm:right-4 sm:h-[560px] sm:max-h-[75vh] sm:w-[380px] sm:max-w-[93vw] sm:rounded-2xl sm:border dark:border-slate-700 dark:bg-slate-900/95"
           >
-            {/* header */}
-            <div className="flex items-center justify-between bg-gradient-to-r from-emerald-600 to-sky-600 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white sm:pt-3">
+            {/* header — solid bg fallback so white text/close stay visible
+                even if the gradient utility doesn't render (Tailwind v4) */}
+            <div className="flex items-center justify-between bg-emerald-600 bg-gradient-to-r from-emerald-600 to-sky-600 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white sm:pt-3">
               <span className="flex items-center gap-1.5 text-sm font-bold">
                 ⚽ {t("chat.title")} <Sparkles size={14} className="text-amber-300" />
               </span>
               <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-xs font-semibold tabular-nums"
+                <span className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-xs font-semibold tabular-nums"
                       title={`${remaining ?? "?"}/${limit}`}>
                   <MessageSquare size={12} className="text-amber-300" />
-                  <span className={(remaining ?? 0) > 0 ? "text-white" : "text-white/50"}>
-                    {remaining ?? "?"}
-                  </span>
+                  <span className="text-white">{remaining ?? "?"}</span>
                 </span>
-                <button onClick={() => setOpen(false)} aria-label="Close"
-                  className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-white/15">
-                  <X size={18} />
+                <button onClick={() => setOpen(false)} aria-label="Đóng"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/35 active:bg-white/45">
+                  <X size={20} strokeWidth={2.5} />
                 </button>
               </div>
             </div>
