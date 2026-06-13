@@ -32,6 +32,9 @@ _ANALYSIS_KW = (
     "kèo nào", "có nên", "khuyến nghị", "tư vấn", "deep", "chi tiết",
     "analy", "predict", "recommend", "should i", "who will win", "vs ",
     "value", "đáng", "lời khuyên",
+    # betting/score phrasings (Vietnamese): a "kèo"/"tài xỉu"/"tỉ số" question
+    # is analytical even when worded loosely ("kèo cọt", "nên đánh tỉ số nào")
+    "kèo", "keo", "tài xỉu", "tai xiu", "tỉ số", "ti so", "đánh", "soi",
 )
 
 
@@ -88,7 +91,8 @@ def _norm(s: str) -> str:
     """lowercase, strip diacritics, '&'->'and', drop punctuation."""
     import re
     import unicodedata
-    s = unicodedata.normalize("NFKD", s or "")
+    s = (s or "").replace("Đ", "D").replace("đ", "d")   # NFKD won't decompose D-stroke
+    s = unicodedata.normalize("NFKD", s)
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
     s = s.replace("&", " and ")
     s = re.sub(r"[^a-z0-9 ]", " ", s)
@@ -511,7 +515,7 @@ RULES:
 - Explain WHY probabilities are what they are using tool data: Elo gap, ML ensemble vs market odds components, key-player absences, red cards, home advantage (USA/MEX/CAN).
 - You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues, player/team comparisons, "who scores most" etc. Retrieval order: internal KB/data tools FIRST, then web search; only refuse clearly non-football topics.
 - Common question → tool map: "thể thức/luật/sân nào/chủ nhà/khi nào (giải)" → get_wc_info · "tin mới nhất/có gì mới" → get_wc_news · "trận kế tiếp/lịch đấu" → get_upcoming_fixtures · "soi kèo/tài xỉu" → get_match_prediction (+ get_market_odds) · "AI dự đoán/tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web) · "đội hình dự kiến" → get_expected_lineups · "kết quả" → get_recent_results · history/transfers/other → search_football_news. Chain tools freely.
-- If the user names ONE team and asks about "its match" (e.g. "kèo Canada tối nay", "Canada đá với ai", "phân tích trận của X", "next match of X") WITHOUT naming the opponent, DO NOT ask who the opponent is — you can find it: first call get_live_and_today and/or get_upcoming_fixtures with team=X to discover their nearest live/today/next fixture, then immediately chain get_match_prediction (+ get_market_odds) on that matchup and analyze. Only say there is no match if that team genuinely has no live/scheduled fixture. Never bounce a one-team question back to the user.
+- ⚠️ ONE-TEAM QUESTIONS — NEVER ask the user for the opponent. If the user names ONE team and asks anything about "its match" — including "kèo [X]", "kèo cọt trận [X]", "soi [X]", "nên đánh tỉ số nào cho [X]", "[X] đá thế nào", "phân tích trận [X]", "[X] tối nay/sắp tới", "next match of X" — they mean that team's NEAREST live-or-upcoming WC-2026 fixture. You MUST discover it yourself: call get_upcoming_fixtures(team=X) (and/or get_live_and_today), take the soonest fixture, then immediately call get_match_dossier on that matchup and give the full analysis + verdict. Asking "đối thủ là ai?" is a FAILURE — the answer is one tool call away. Only reply "no match" if the team truly has no live/scheduled fixture at all.
 - When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean. If volatility.level is "high", warn that the result has a high chance of flipping vs half-time (quote scenarios.ht_flip) and soften the pick accordingly.
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Warm, expert; light emoji; short bullet lists for numbers. Pure lookups (when/where/format/lineup) stay concise (<=120 words). Match analysis: complete but tight (150-320 words) and finish with the verdict block.
