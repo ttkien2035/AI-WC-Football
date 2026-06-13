@@ -264,7 +264,7 @@ async def pipeline_status():
 
 
 @router.get("/pipeline/review", dependencies=[Depends(require_admin)])
-async def pipeline_review(limit: int = Query(default=30, ge=1, le=104)):
+async def pipeline_review(limit: int = Query(default=104, ge=1, le=104)):
     return await pipeline.review(limit=limit)
 
 

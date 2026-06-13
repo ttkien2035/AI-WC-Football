@@ -162,7 +162,7 @@ def _surprise_tag(correct: bool, p_actual: float, p_pick: float) -> str:
     return "near_miss"
 
 
-async def review(limit: int = 30) -> dict:
+async def review(limit: int = 104) -> dict:    # default: the whole tournament
     matches = await service.get_matches()
     finished = [m for m in matches
                 if m["status"] == "FINISHED" and m["home"]["tla"]
@@ -290,7 +290,7 @@ async def review(limit: int = 30) -> dict:
 
         # ---- improvement suggestion keyed to the dominant miss ----
         improve = None
-        if not correct and stage == "GROUP_STAGE":
+        if not correct and m["stage"] == "GROUP_STAGE":
             improve = "imp_motivation" if p_actual < 0.3 else "imp_winner"
         elif exp_goals is not None and abs(total_goals - exp_goals) >= 2:
             improve = "imp_goals"
