@@ -105,12 +105,16 @@ class Settings(BaseSettings):
     # Style/tactics interaction layer (literature-direction, bounded, audited
     # in-tournament via pipeline review)
     style_adjust_enabled: bool = True
-    style_total_max: float = 0.06   # max |lambda adjustment| from style matchup
-    # style -> W/D/L supremacy (Elo-equivalent, literature-direction priors,
-    # graded by the factor scorecard like every other nudge)
+    # SHRUNK after a StatsBomb fit on 314 intl matches (ml/statsbomb_style_fit.py):
+    # match style (possession-balance, pressing) adds NOTHING to total goals
+    # beyond shot volume (p=0.29/0.38, both insignificant). Keep only a tiny
+    # literature-direction nudge, audited live by the factor scorecard.
+    style_total_max: float = 0.03   # was 0.06 — halved; data shows weak effect
+    # style -> W/D/L supremacy. Same fit: possession dominance barely predicts
+    # wins (r=+0.05, p=0.37; dominate 50% vs cede 37%). Shrunk from 18 -> 10.
     style_sup_enabled: bool = True
-    style_sup_max_elo: float = 18.0
-    style_sup_draw_bump: float = 0.012  # possession-mirror slight draw tilt
+    style_sup_max_elo: float = 10.0
+    style_sup_draw_bump: float = 0.010
     # style-conditioned minute simulation (state response by team traits)
     style_sim_enabled: bool = True
     style_sim_lead_hold: float = 0.35   # counter team leading: keeps this share of its ease-off

@@ -1,0 +1,17 @@
+{
+ "n_matches": 314,
+ "total_goals_mean": 2.908,
+ "corr_style_totals": {
+  "poss_balance": -0.034,
+  "pressing_sum": 0.148,
+  "shots_sum": 0.464
+ },
+ "style_totals_significant": false,
+ "corr_possession_win": 0.05,
+ "possession_win_significant": false,
+ "win_pct_dominate_vs_cede": [
+  0.5,
+  0.372
+ ],
+ "note": "style effect on totals NOT significant beyond shots; possession dominance only weakly predicts wins -> style factors kept SMALL."
+}
