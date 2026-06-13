@@ -303,6 +303,7 @@ async def _exec_tool(name: str, args: dict) -> dict:
                     "seed": p["components"].get("seed"),   # draw pots + prior delta
                     "ou_lines": p.get("market_lines"),     # line + over% + pick + confidence
                     "scenarios": (p.get("simulation") or {}).get("scenarios"),
+                    "volatility": p.get("volatility"),  # high => state the pick cautiously
                     "elo": p["elo"]}
         if name == "get_team_overview":
             t = resolve_team(args.get("team", ""))
@@ -445,7 +446,7 @@ RULES:
 - You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues, player/team comparisons, "who scores most" etc. Retrieval order: internal KB/data tools FIRST, then web search; only refuse clearly non-football topics.
 - Common question → tool map: "thể thức/luật/sân nào/chủ nhà/khi nào (giải)" → get_wc_info · "tin mới nhất/có gì mới" → get_wc_news · "trận kế tiếp/lịch đấu" → get_upcoming_fixtures · "soi kèo/tài xỉu" → get_match_prediction (+ get_market_odds) · "AI dự đoán/tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web) · "đội hình dự kiến" → get_expected_lineups · "kết quả" → get_recent_results · history/transfers/other → search_football_news. Chain tools freely.
 - If the user names ONE team and asks about "its match" (e.g. "kèo Canada tối nay", "Canada đá với ai", "phân tích trận của X", "next match of X") WITHOUT naming the opponent, DO NOT ask who the opponent is — you can find it: first call get_live_and_today and/or get_upcoming_fixtures with team=X to discover their nearest live/today/next fixture, then immediately chain get_match_prediction (+ get_market_odds) on that matchup and analyze. Only say there is no match if that team genuinely has no live/scheduled fixture. Never bounce a one-team question back to the user.
-- When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean.
+- When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean. If volatility.level is "high", warn that the result has a high chance of flipping vs half-time (quote scenarios.ht_flip) and soften the pick accordingly.
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Be concise (<=180 words), warm, expert; light emoji (max 3); use short bullet lists for numbers.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.

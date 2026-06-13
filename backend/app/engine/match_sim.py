@@ -156,6 +156,10 @@ def simulate(lam_h: float, lam_a: float, *, n: int = 20000,
     final_lead = gh - ga
     blew_lead = float(np.mean(led_home & (final_lead <= 0)))   # led then didn't win
     came_back = float(np.mean(led_away & (final_lead > 0)))    # trailed then won
+    # volatility: final W/D/L class differs from the half-time class —
+    # the "result flipped vs HT" flag the post-match review raises, but
+    # PREDICTED pre-match (and graded by the sim-timing scorecard)
+    ht_flip = float(np.mean(np.sign(ht_h - ht_a) != np.sign(final_lead)))
     return {
         "n": n,
         "probs": {"home": round(home, 4), "draw": round(draw, 4), "away": round(away, 4)},
@@ -164,6 +168,7 @@ def simulate(lam_h: float, lam_a: float, *, n: int = 20000,
         "btts": round(float(np.mean((gh > 0) & (ga > 0))), 4),
         "exp_goals": {"home": round(float(gh.mean()), 2), "away": round(float(ga.mean()), 2)},
         "scenarios": {
+            "ht_flip": round(ht_flip, 4),
             "late_goal_80plus": round(float(late_goal.mean()), 4),
             "home_blew_lead": round(blew_lead, 4),
             "home_comeback": round(came_back, 4),

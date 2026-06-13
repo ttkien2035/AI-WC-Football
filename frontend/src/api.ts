@@ -118,12 +118,14 @@ export type Prediction = {
     scorelines: ScoreP[];
     exp_goals: { home: number; away: number };
     scenarios: {
+      ht_flip: number;
       late_goal_80plus: number; home_blew_lead: number; home_comeback: number;
       clean_sheet_home: number; clean_sheet_away: number;
     };
     from: { minute: number; score: { home: number; away: number } };
     runs: number;
   };
+  volatility?: { ht_flip: number; level: "low" | "medium" | "high" };
 };
 
 export type ScoreP = { home: number; away: number; p: number };

@@ -393,7 +393,7 @@ def sim_timing_scorecard(matches: list[dict]) -> dict:
     where the style-conditioned simulation proves itself: late goals,
     comebacks and clean sheets are timing/state properties the closed-form
     matrix cannot express."""
-    keys = ("late_goal_80plus", "home_comeback",
+    keys = ("ht_flip", "late_goal_80plus", "home_comeback",
             "clean_sheet_home", "clean_sheet_away")
     agg = {k: {"n": 0, "p_sum": 0.0, "hits": 0, "brier": 0.0} for k in keys}
     for m in matches:
@@ -415,7 +415,12 @@ def sim_timing_scorecard(matches: list[dict]) -> dict:
         for g in goals:
             lead += 1 if g.get("side") == "home" else -1
             led_away |= lead < 0
+        ht = (log_e or {}).get("ht_score") or m.get("ht_score") or {}
+        ht_known = ht.get("home") is not None
+        _cls = lambda x, y: "h" if x > y else ("d" if x == y else "a")
         actuals = {
+            "ht_flip": (_cls(ht["home"], ht["away"]) != _cls(gh, ga)
+                        if ht_known else None),
             "late_goal_80plus": (any(g["minute"] >= 80 for g in goals)
                                  if timing_ok else None),
             "home_comeback": (led_away and gh > ga) if timing_ok else None,

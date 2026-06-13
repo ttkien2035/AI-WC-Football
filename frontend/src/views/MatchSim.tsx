@@ -187,6 +187,11 @@ function ResultPanel({ pred, teams, h2h, ana }: {
         <ProbBar label={`${pred.home} ${t("match.win")}`} p={pred.probs.home} color="bg-emerald-500" />
         <ProbBar label={t("match.draw")} p={pred.probs.draw} color="bg-slate-400" />
         <ProbBar label={`${pred.away} ${t("match.win")}`} p={pred.probs.away} color="bg-sky-500" />
+        {pred.volatility?.level === "high" && (
+          <p className="text-[11px] font-medium text-amber-500">
+            ⚡ {t("match.volatile", { p: pct(pred.volatility.ht_flip) })}
+          </p>
+        )}
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -509,6 +514,7 @@ function SimPanel({ pred }: { pred: Prediction }) {
   const s = pred.simulation!;
   const sc = s.scenarios;
   const items: [string, number][] = [
+    [t("match.sim_flip"), sc.ht_flip],
     [t("match.sim_late"), sc.late_goal_80plus],
     [t("match.sim_cs_h", { team: pred.home }), sc.clean_sheet_home],
     [t("match.sim_cs_a", { team: pred.away }), sc.clean_sheet_away],

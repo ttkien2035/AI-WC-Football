@@ -526,6 +526,17 @@ async def predict(home: str, away: str, minute: int | None = None,
         "exp_goals": sim["exp_goals"], "scenarios": sim["scenarios"],
         "from": sim["from"], "runs": sim["n"],
     }
+    # pre-match volatility: P(final W/D/L class != half-time class) from the
+    # minute sim. High-volatility fixtures (typically ~0.35 lopsided .. 0.43
+    # coin-flip) deserve a softer read of the headline pick — surfaced in the
+    # UI/chatbot and calibration-graded by the pipeline sim-timing scorecard.
+    flip = sim["scenarios"].get("ht_flip")
+    if minute is None and flip is not None:
+        pred["volatility"] = {
+            "ht_flip": flip,
+            "level": ("high" if flip >= 0.42 else
+                      "medium" if flip >= 0.38 else "low"),
+        }
 
     # ---- Asian-line O/U: model % at the MARKET's actual lines ------------
     goals_line, goals_prices, corners_line, corners_prices = 2.5, None, 9.5, None
