@@ -307,3 +307,31 @@ scoreline on xG (unlucky) is rated up, an over-performer down — magnitude
 grounded (~190 Elo/goal applied as a small capped fraction, ±25 Elo, decaying
 n/(n+2)), feeding every goal target, and graded in the factor scorecard. Same
 bounded-prior + live-audit discipline as the seeding prior.
+
+
+## 12. TODO — validation pass after group-stage round 1
+
+Every bounded factor below was adopted with a holdout-validated *direction* but
+is graded LIVE. **After matchday 1 of all 12 groups** (all 48 teams have played
+once, ~24 real WC-2026 matches), re-read the scorecards and keep / disable /
+re-fit each — measure on real results, never assume. Toggles are env flags (no
+code change); ship via the normal deploy.
+
+- [ ] **Factor scorecard** — verdicts for `style`, `context`, `venue`, `prior`
+      (seeding), `style_sup`, `xg_form`. "hurting" + n≥~10 → disable its flag
+      (`STYLE_SUP_ENABLED`, `XG_FORM_ENABLED`, `CONTEXT_ADJUST_ENABLED`,
+      `VENUE_ADJUST_ENABLED`, `POT_PRIOR_ENABLED`).
+- [ ] **Corners scorecard** — Brier / hit-rate / adaptive base (9.07 → observed
+      WC mean); re-check `corners_base`, `corners_cross_to_corner`.
+- [ ] **sim_timing scorecard** — ht_flip / late-goal / comeback / clean-sheet
+      predicted vs actual; re-tune `sim_state_effect` or re-fit sim if off.
+- [ ] **meta_weights** — confirm the learned W/D/L blend (active at ≥8 finished).
+- [ ] **O/U + handicap calibration** on round-1 results — re-tune `ou_total_scale`
+      / `ou_head_weight` / `goal_dc_weight` if biased.
+- [ ] **xG-form nudge** — `xg_form` verdict; tune `xg_form_elo` / `xg_form_cap`.
+
+Re-fit scripts: `ml/statsbomb_fit.py`, `statsbomb_style_fit.py`,
+`statsbomb_sim_fit.py`, `corner_tactics_fit.py`, `attdef_lambda_proto.py`,
+`fatigue_proto.py`, `xgform_proto.py` (offline; re-run to refresh coefficients).
+Candidate not yet built: §2C derived markets (clean-sheet, win-to-nil, odd/even,
+HT/FT, first/next goal) — free from the reconciled matrix/sim, zero accuracy risk.
