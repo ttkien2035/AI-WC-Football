@@ -136,13 +136,15 @@ def _parse_event(ev: dict) -> dict | None:
     }
 
 
-async def board() -> tuple[list[dict], str]:
-    """All upcoming WC events with featured markets. ([], 'disabled') w/o key."""
+async def board(force: bool = False) -> tuple[list[dict], str]:
+    """All upcoming WC events with featured markets. ([], 'disabled') w/o key.
+    force=True bypasses the cache hit (scheduler pre-warm near kickoff)."""
     if not settings.odds_keys():
         return [], "disabled"
-    hit = cache.get(_BULK_KEY, TTL_BULK)
-    if hit is not None:
-        return hit, "live"
+    if not force:
+        hit = cache.get(_BULK_KEY, TTL_BULK)
+        if hit is not None:
+            return hit, "live"
     try:
         events = await _api_get(f"/sports/{SPORT}/odds",
                                 {"regions": "eu", "markets": FEATURED,

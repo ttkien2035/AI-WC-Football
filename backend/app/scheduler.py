@@ -11,10 +11,12 @@ import asyncio
 import logging
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import cache, service
+from .clients import odds as odds_client
 from .engine import ml_ensemble
 
 log = logging.getLogger("scheduler")
@@ -102,11 +104,25 @@ async def _tick() -> float:
     else:
         await maybe_retrain()       # nightly model refresh, never during a match
     nk = _next_kickoff_s(matches)
+    near = live or (nk is not None and nk < 7200)   # a match within 2h, or live
+
+    # Pre-warm odds so user clicks never trigger the cold ~1.2s odds fetch and
+    # the Asian line / value stays fresh. Throttled (odds API has a monthly
+    # quota) — at most ~ every 9 min regardless of tick frequency.
+    if near:
+        last, _ = cache.get_stale("odds:last_warm")
+        if not last or time.time() - last > 540:
+            try:
+                await odds_client.board(force=True)
+                cache.put("odds:last_warm", time.time())
+            except Exception:
+                log.exception("odds pre-warm failed")
+
     if live or (nk is not None and nk < 600):
         return 60.0
-    if nk is None:
-        return 1800.0
-    return min(max(nk - 300, 600.0), 1800.0)
+    if nk is not None and nk < 7200:     # match within 2h -> 10-min freshness
+        return 600.0
+    return 1800.0
 
 
 async def run() -> None:

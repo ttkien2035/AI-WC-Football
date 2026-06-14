@@ -1,4 +1,5 @@
 """Orchestration: merge data sources, estimate live minutes, cache simulations."""
+import asyncio
 import hashlib
 import json
 import time
@@ -378,13 +379,17 @@ async def predict(home: str, away: str, minute: int | None = None,
                   hg: int = 0, ag: int = 0) -> dict:
     from .static_data import canon_tla
     home, away = canon_tla(home), canon_tla(away)   # tolerate feed TLA variants
-    teams = await get_teams()
+    # independent data sources fetched CONCURRENTLY (each is internally cached;
+    # the gather collapses the cold-path serial waits — odds API ~1.2s, matches,
+    # standings — into one round-trip instead of summing them).
+    teams, matches, market_res, board_res = await asyncio.gather(
+        get_teams(), get_matches(), odds_client.market_probs(), odds_client.board())
     if home not in teams or away not in teams:
         raise ValueError(f"Unknown team TLA: {home if home not in teams else away}")
-    market_map, _ = await odds_client.market_probs()
+    market_map, _ = market_res
+    board_events, _ = board_res
 
     # fixture context between the two teams: live state, HT score, corners, stage
-    matches = await get_matches()
     fixture = next((m for m in matches
                     if {m["home"]["tla"], m["away"]["tla"]} == {home, away}), None)
     ht_h = ht_a = None
@@ -602,8 +607,7 @@ async def predict(home: str, away: str, minute: int | None = None,
     # ---- Asian-line O/U: model % at the MARKET's actual lines ------------
     goals_line, goals_prices, corners_line, corners_prices = 2.5, None, 9.5, None
     try:
-        events, _ = await odds_client.board()
-        ev = next((e for e in events
+        ev = next((e for e in board_events
                    if {e["home_tla"], e["away_tla"]} == {home, away}), None)
         if ev:
             if ev.get("totals") and ev["totals"].get("point") is not None:

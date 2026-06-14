@@ -79,6 +79,18 @@ export default function MatchSim() {
     }
   };
 
+  // Auto-refresh a LIVE match's prediction so the score, win-prob and the
+  // live corners projection track the match in real time (the server fills
+  // the current minute/score itself when called without manual in-play args).
+  const pairIsLive = live.some(
+    (m) => (m.home.tla === home && m.away.tla === away)
+        || (m.home.tla === away && m.away.tla === home));
+  useEffect(() => {
+    if (!pairIsLive || inPlay) return;
+    const id = setInterval(() => run(home, away, false), 45000);
+    return () => clearInterval(id);
+  }, [pairIsLive, inPlay, home, away]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
       <Card>
@@ -313,7 +325,9 @@ function CornersPanel({ pred }: { pred: Prediction }) {
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         <Stat title={pred.home} value={c.expected.home.toFixed(1)} />
         <Stat title={pred.away} value={c.expected.away.toFixed(1)} />
-        <Stat title={t("match.corners_total")} value={c.expected.total.toFixed(1)} />
+        <Stat
+          title={c.in_play ? `🔴 ${t("match.corners_total")}` : t("match.corners_total")}
+          value={(c.in_play ? c.in_play.projected_total : c.expected.total).toFixed(1)} />
         <Stat title={t("match.h1")} value={c.expected.h1.toFixed(1)} />
         <Stat title={t("match.h2")} value={c.expected.h2.toFixed(1)} />
       </div>
