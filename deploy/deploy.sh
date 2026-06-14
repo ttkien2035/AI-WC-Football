@@ -73,6 +73,32 @@ if [ -z "$ok" ]; then
   exit 1
 fi
 
+# 5b) seed NEW committed model artifacts into the persistent volume ----------
+# models_data persists in-tournament RETRAINED models across deploys, so it
+# SHADOWS artifacts that ship only in the freshly-built image. Copy any MISSING
+# committed artifact into the volume (add-missing: never clobber a retrained
+# one), then restart so the app re-reads. This is how new fitted artifacts
+# (e.g. shot_form.json) reach prod without a volume wipe.
+echo "==> Syncing new model artifacts into volume (add-missing) ..."
+added=""
+for f in backend/app/data/models/*; do
+  [ -f "$f" ] || continue
+  name="$(basename "$f")"
+  if ! docker compose exec -T backend test -e "/app/app/data/models/$name" 2>/dev/null; then
+    if docker compose cp "$f" "backend:/app/app/data/models/$name" 2>/dev/null; then
+      echo "   + added $name"; added=1
+    fi
+  fi
+done
+if [ -n "$added" ]; then
+  echo "==> New artifacts added — restarting backend ..."
+  docker compose restart backend >/dev/null 2>&1 || true
+  for _ in $(seq 1 30); do
+    docker compose exec -T backend curl -sf http://localhost:8000/api/health >/dev/null 2>&1 && break
+    sleep 2
+  done
+fi
+
 docker compose ps
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo ""
