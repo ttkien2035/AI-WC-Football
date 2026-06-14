@@ -647,7 +647,27 @@ async def predict(home: str, away: str, minute: int | None = None,
                   "source": "market" if corners_prices else "default"}
     corners_ou["pick"] = "over" if corners_ou["over"] >= 0.5 else "under"
     corners_ou["confidence"] = _conf(corners_ou["over"])
-    pred["market_lines"] = {"goals": goals_ou, "corners": corners_ou}
+
+    # ---- Asian handicap (kèo chấp) from the SAME reconciled matrix ----------
+    em = match_model.expected_margin(m_full)
+    hcap_prices = None
+    sp = (ev or {}).get("spreads") if ev else None
+    if sp and sp.get("point") is not None:           # market handicap line (home side)
+        hcap_line = -abs(float(sp["point"])) if em >= 0 else abs(float(sp["point"]))
+        hcap_prices = {k: v for k, v in sp.items() if k != "point"}
+    else:                                            # standard line on the favourite
+        hcap_line = -round(em * 2) / 2
+    ah = match_model.prob_at_handicap(m_full, hcap_line)
+    nonpush = ah["home"] + ah["away"]
+    home_cover = ah["home"] / nonpush if nonpush > 1e-9 else 0.5
+    handicap = {"line": hcap_line, **ah,
+                "pick": "home" if ah["home"] >= ah["away"] else "away",
+                "pick_tla": home if ah["home"] >= ah["away"] else away,
+                "fav_tla": home if em >= 0 else away,
+                "exp_margin": round(em, 2), "market": hcap_prices,
+                "source": "market" if hcap_prices else "default",
+                "confidence": _conf(home_cover)}
+    pred["market_lines"] = {"goals": goals_ou, "corners": corners_ou, "handicap": handicap}
     return pred
 
 

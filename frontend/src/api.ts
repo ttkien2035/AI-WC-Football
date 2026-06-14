@@ -95,6 +95,12 @@ export type Prediction = {
   is_knockout?: boolean;
   market_lines?: {
     goals: LineOU; corners: LineOU;
+    handicap?: {
+      line: number; home: number; push: number; away: number;
+      pick: "home" | "away"; pick_tla: string; fav_tla: string;
+      exp_margin: number; source: string; confidence: string;
+      market?: Record<string, number | null> | null;
+    };
   };
   halves?: {
     h1?: { probs?: Record<string, number>; top_scores?: ScoreP[]; lambdas?: number[]; note?: string; final?: unknown };

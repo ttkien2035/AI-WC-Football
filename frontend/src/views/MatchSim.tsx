@@ -452,7 +452,44 @@ function AsianLinePanel({ pred }: { pred: Prediction }) {
       <div className="grid gap-2 sm:grid-cols-2">
         <Row label={t("match.goals_line")} d={ml.goals} />
         <Row label={t("match.corners_line2")} d={ml.corners} />
+        {ml.handicap && <HandicapRow h={ml.handicap} home={pred.home} away={pred.away} />}
       </div>
+    </div>
+  );
+}
+
+function HandicapRow({ h, home, away }: {
+  h: NonNullable<Prediction["market_lines"]>["handicap"]; home: string; away: string }) {
+  const t = useT();
+  if (!h) return null;
+  const lineLabel = `${home} ${h.line > 0 ? "+" : ""}${h.line}`;   // home's handicap
+  return (
+    <div className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
+      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-1">
+        <span className="text-xs font-bold">
+          {t("match.handicap_line")}{" "}
+          <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-extrabold tabular-nums text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+            {lineLabel}
+          </span>
+        </span>
+        <span className="text-[10px] text-slate-400">
+          {h.source === "market" ? `📊 ${t("match.line_market")}` : t("match.line_default")}
+          {" · "}{t("match.exp_margin")} {h.exp_margin > 0 ? "+" : ""}{h.exp_margin}
+        </span>
+      </div>
+      <p className="mb-1 text-[11px] font-semibold">
+        {h.confidence === "toss_up"
+          ? <span className="text-amber-600 dark:text-amber-400">{t("conf.toss_up")}</span>
+          : <span className="text-emerald-600 dark:text-emerald-400">
+              {t("conf.pick")}: {h.pick_tla} ({t(`conf.${h.confidence}`)})
+            </span>}
+      </p>
+      <ProbBar label={`${home} ${t("match.hcap_cover")}`} p={h.home} color="bg-emerald-500" />
+      <div className="h-1" />
+      <ProbBar label={`${away} ${t("match.hcap_cover")}`} p={h.away} color="bg-sky-500" />
+      {h.push > 0.001 && (
+        <p className="mt-0.5 text-right text-[10px] text-slate-400">{t("match.push")}: {pct(h.push)}</p>
+      )}
     </div>
   );
 }

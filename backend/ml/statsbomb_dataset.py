@@ -96,6 +96,8 @@ def aggregate(events: list, mid: int, comp: str, level: str) -> list[dict]:
         elif typ == "Shot":
             a["shots"] += 1
             a["xg"] += (e.get("shot") or {}).get("statsbomb_xg") or 0.0
+            if _in_box(e.get("location")):       # shot from inside the box
+                a["shots_in_box"] += 1           # LIVE-servable proxy via shotmap
             if ((e.get("shot") or {}).get("outcome") or {}).get("name") == "Goal":
                 a["goals"] += 1
         elif typ == "Pressure":
@@ -114,7 +116,7 @@ def aggregate(events: list, mid: int, comp: str, level: str) -> list[dict]:
             "corners_for": a["corners"], "corners_against": o["corners"],
             "crosses": a["crosses"], "deep_cross": a["deep_cross"],
             "wide_ft": a["wide_ft"], "box_entry": a["box_entry"],
-            "shots": a["shots"], "xg": round(a["xg"], 3),
+            "shots": a["shots"], "shots_in_box": a["shots_in_box"], "xg": round(a["xg"], 3),
             "fwd_ratio": round(a["fwd"] / p, 3), "long_ratio": round(a["long"] / p, 3),
             "pressures": a["pressures"], "passes": a["passes"],
             "possession": round(a["passes"] / tot_pass, 3),

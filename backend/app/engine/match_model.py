@@ -121,6 +121,24 @@ def prob_at_line(m: np.ndarray, line: float) -> dict:
     return {"over": round(over, 4), "under": round(under, 4), "push": round(push, 4)}
 
 
+def prob_at_handicap(m: np.ndarray, line: float) -> dict:
+    """Asian handicap on the HOME team. `line` is home's handicap (negative =
+    home gives goals, e.g. -1.5). Settles on goal-margin + line: home covers if
+    >0, away if <0, push if ==0 (integer lines only; half/quarter lines never
+    push). Read from the same reconciled matrix as W/D/L & O/U for consistency."""
+    hi, ai = np.indices(m.shape)
+    adj = (hi - ai) + line
+    home = float(m[adj > 1e-9].sum())
+    push = float(m[np.abs(adj) < 1e-9].sum())
+    away = max(0.0, 1.0 - home - push)
+    return {"home": round(home, 4), "push": round(push, 4), "away": round(away, 4)}
+
+
+def expected_margin(m: np.ndarray) -> float:
+    hi, ai = np.indices(m.shape)
+    return float((m * (hi - ai)).sum())
+
+
 def top_scorelines(m: np.ndarray, k: int = 5, shift: tuple[int, int] = (0, 0)) -> list[dict]:
     flat = np.argsort(m, axis=None)[::-1][:k]
     out = []

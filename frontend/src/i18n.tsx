@@ -115,9 +115,12 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "ctx_heat": { vi: "Sân lộ thiên ở {city}, đá lúc {hour}h trời nóng — tempo giảm, ít bàn cuối trận (nghiêng Xỉu).", en: "Open-roof {city}, {hour}:00 heat — lower tempo, fewer late goals (lean Under)." },
   "ctx_heat_real": { vi: "Dự báo {city} lúc bóng lăn: {temp}°C (cảm giác {feels}°C, ẩm {humidity}%) — sân lộ thiên, tempo giảm (nghiêng Xỉu).", en: "Kickoff forecast {city}: {temp}°C (feels {feels}°C, {humidity}% humidity) — open roof, lower tempo (lean Under)." },
 
-  "match.asian": { vi: "Kèo châu Á — AI dự đoán Tài/Xỉu", en: "Asian lines — AI Over/Under %" },
+  "match.asian": { vi: "Kèo châu Á — AI dự đoán Tài/Xỉu & Chấp", en: "Asian lines — AI Over/Under & Handicap %" },
   "match.goals_line": { vi: "Bàn thắng", en: "Goals" },
   "match.corners_line2": { vi: "Phạt góc", en: "Corners" },
+  "match.handicap_line": { vi: "Kèo chấp", en: "Handicap" },
+  "match.hcap_cover": { vi: "ăn kèo", en: "covers" },
+  "match.exp_margin": { vi: "hiệu số KV", en: "exp. margin" },
   "match.over": { vi: "Tài", en: "Over" },
   "match.under": { vi: "Xỉu", en: "Under" },
   "match.push": { vi: "hòa kèo", en: "push" },

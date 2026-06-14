@@ -505,7 +505,7 @@ MATCH-ANALYSIS COMPLETENESS (applies to ANY question that ends in a match predic
 - Cover, as short bullets: W/D/L %, xG (λ) both sides, 2-3 top scorelines, O/U 2.5 + corners line with confidence, key H2H note, and the decisive factors (style/wing-play, venue/heat, volatility, key absences).
 - SYNTHESIZE, don't just dump numbers: say what they MEAN together, and where the model's fair odds beat the bookmaker line (= value), state it.
 - END (before the FOLLOWUPS line) with this verdict block, in the user's language, exactly:
-  🎯 Nhận định: <lean — winner / O-U / BTTS> · độ tự tin <toss_up|lean|clear>
+  🎯 Nhận định: <lean — winner / O-U / Asian handicap (kèo chấp) / BTTS> · độ tự tin <toss_up|lean|clear>
   ▸ Lý do: <2-3 bullets tying the call to concrete factors + model-vs-market value>
   ▸ Lưu ý: <volatility/biến động or caveat> — tham khảo thống kê, không phải lời khuyên cá cược.
 - Be decisive but honest: a genuine 50-50 is a 50-50; if volatility.level is high, soften the pick.
