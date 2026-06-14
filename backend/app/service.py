@@ -174,6 +174,33 @@ def record_corner_stats(matches: list[dict]) -> None:
             cache.put(key, hist)
 
 
+def xg_form_delta(tla: str) -> float:
+    """In-tournament rating nudge from xG-vs-result 'luck'. A team whose xG
+    differential exceeds its goal differential (out-played its scoreline, i.e.
+    unlucky) is stronger than results show -> small Elo boost; over-performers
+    are nudged down. Bounded, decays-in by games. Group-B validated direction
+    (rolling xG-form beats goal-form). 0 when disabled / no xG yet."""
+    if not settings.xg_form_enabled:
+        return 0.0
+    xgd = gd = n = 0.0
+    for key in cache.keys("matchlog:"):
+        e, _ = cache.get_stale(key)
+        if not e or tla not in (e.get("home"), e.get("away")):
+            continue
+        sc, st = e.get("score") or {}, (e.get("stats") or {})
+        xg = st.get("xg") or {}
+        if sc.get("home") is None or xg.get("home") is None:
+            continue
+        side, opp = ("home", "away") if e["home"] == tla else ("away", "home")
+        xgd += (xg[side] - xg[opp]); gd += (sc[side] - sc[opp]); n += 1
+    if n < 1:
+        return 0.0
+    luck = (xgd - gd) / n                      # >0 = under-performed xG (unlucky)
+    w = n / (n + settings.xg_form_k)
+    raw = settings.xg_form_elo * luck * w
+    return round(max(-settings.xg_form_cap, min(settings.xg_form_cap, raw)), 1)
+
+
 def observed_corner_mean() -> tuple[float, int] | None:
     """Tournament-wide mean TOTAL corners per finished match (self-learning
     signal): the club-fitted base over-predicts WC corners, so we measure the
@@ -447,8 +474,10 @@ async def predict(home: str, away: str, minute: int | None = None,
         home, away,
         teams[home]["elo"] - pen_h + seed_d_h,
         teams[away]["elo"] - pen_a + seed_d_a)
-    elo_adjust = (-pen_h + seed_d_h + sup["home"],
-                  -pen_a + seed_d_a + sup["away"])
+    # in-tournament xG-form nudge (unlucky-on-xG team rated up; Group-B validated)
+    xgf_h, xgf_a = xg_form_delta(home), xg_form_delta(away)
+    elo_adjust = (-pen_h + seed_d_h + sup["home"] + xgf_h,
+                  -pen_a + seed_d_a + sup["away"] + xgf_a)
     rc = (fixture or {}).get("red_cards") or {}
     red_cards = (rc.get("home", 0), rc.get("away", 0))
 
@@ -480,8 +509,8 @@ async def predict(home: str, away: str, minute: int | None = None,
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
-        elo_h=teams[home]["elo"] - pen_h + seed_d_h + sup["home"],
-        elo_a=teams[away]["elo"] - pen_a + seed_d_a + sup["away"],
+        elo_h=teams[home]["elo"] - pen_h + seed_d_h + sup["home"] + xgf_h,
+        elo_a=teams[away]["elo"] - pen_a + seed_d_a + sup["away"] + xgf_a,
         home_stats=teams[home], away_stats=teams[away],
         lg_avg_per_team=lg_avg,
         market=market,
@@ -550,6 +579,7 @@ async def predict(home: str, away: str, minute: int | None = None,
     pred["components"]["seed"] = {
         "home_pot": pot_of(home), "away_pot": pot_of(away),
         "prior_delta": {"home": seed_d_h, "away": seed_d_a},
+        "xg_form_delta": {"home": xgf_h, "away": xgf_a},
         "group_difficulty": {"home": group_difficulty(home),
                              "away": group_difficulty(away)},
     }

@@ -60,10 +60,15 @@ def _factor_counterfactuals(pred: dict) -> dict:
                 "probs_with": match_model.matrix_outcomes(m_with),
                 "probs_without": match_model.matrix_outcomes(m_cf)}
 
-    pd_ = ((comp.get("seed") or {}).get("prior_delta")) or {}
+    seed = comp.get("seed") or {}
+    pd_ = seed.get("prior_delta") or {}
     cf = _sup_cf(pd_.get("home", 0.0), pd_.get("away", 0.0))
     if cf:
         out["prior"] = cf
+    xf = seed.get("xg_form_delta") or {}
+    cf = _sup_cf(xf.get("home", 0.0), xf.get("away", 0.0))
+    if cf:
+        out["xg_form"] = cf
     sup = (comp.get("style") or {}).get("supremacy") or {}
     cf = _sup_cf(sup.get("home", 0.0), sup.get("away", 0.0))
     if cf:
@@ -348,7 +353,7 @@ def factor_scorecard(matches: list[dict]) -> dict:
     delta < 0 means the factor IS helping. n counts only matches where the
     factor actually fired."""
     agg = {k: {"n": 0, "with": 0.0, "without": 0.0}
-           for k in ("style", "context", "venue", "prior", "style_sup")}
+           for k in ("style", "context", "venue", "prior", "style_sup", "xg_form")}
     for m in matches:
         if m["status"] != "FINISHED" or m["score"]["home"] is None:
             continue
@@ -365,7 +370,7 @@ def factor_scorecard(matches: list[dict]) -> dict:
                 agg[k]["n"] += 1
                 agg[k]["with"] += (f["over25_with"] - over) ** 2
                 agg[k]["without"] += (f["over25_without"] - over) ** 2
-        for k in ("prior", "style_sup"):
+        for k in ("prior", "style_sup", "xg_form"):
             if fac.get(k):
                 p = fac[k]
                 agg[k]["n"] += 1
@@ -374,7 +379,7 @@ def factor_scorecard(matches: list[dict]) -> dict:
     out = {}
     for k, a in agg.items():
         n = a["n"]
-        row = {"n": n, "metric": "rps" if k in ("prior", "style_sup") else "brier"}
+        row = {"n": n, "metric": "rps" if k in ("prior", "style_sup", "xg_form") else "brier"}
         if n:
             w, wo = a["with"] / n, a["without"] / n
             row.update({"with": round(w, 4), "without": round(wo, 4),

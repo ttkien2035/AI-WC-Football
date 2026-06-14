@@ -182,6 +182,14 @@ class Settings(BaseSettings):
     # blend Dixon-Coles attack/defence lambda into the goal rates (asymmetric
     # attack-vs-defence matchup; holdout: O/U Brier 0.2512->0.244, MAE 1.48->1.42)
     goal_dc_weight: float = 0.5
+    # in-tournament xG-form rating nudge: a team out-performing its scoreline on
+    # xG ("unlucky") is better than results show. Group-B holdout: rolling
+    # xG-form beats goal-form (R2 +17%). Direction-validated; magnitude bounded
+    # (grounded: ~190 Elo/goal, applied as a small fraction, capped) + scorecard.
+    xg_form_enabled: bool = True
+    xg_form_elo: float = 40.0    # Elo per (goal/game) of xG-vs-result luck
+    xg_form_cap: float = 25.0    # max |nudge| Elo
+    xg_form_k: float = 2.0       # confidence decay: weight = n/(n+k)
 
     corners_base: float = 9.07
     # adaptive base: blend the prior with the observed tournament mean, n/(n+k).

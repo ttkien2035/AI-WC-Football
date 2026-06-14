@@ -286,3 +286,24 @@ were triaged out: not validatable historically (no labelled dataset) and prior
 tests show team strength dominates — so they remain qualitative chatbot context,
 not validated predictors. The attack/defence *decomposition* is the validatable
 core of "forward vs defender", and it's now in the model.
+
+
+## 11. Rest/fatigue (null) and xG-form rating update (adopted)
+
+Two more user-suggested factors, tested measure-first:
+
+**Rest / fixture congestion (Group A) — NO effect, not wired.** On 1,820
+club+intl matches (rest ≤21d), controlling for strength: rest days do not
+predict total goals (min-rest coef +0.02, p=0.15) nor margin (rest-diff coef
++0.004, p=0.86). Consistent with the literature (congestion drives injury
+risk, not single-match output). `ml/fatigue_proto.py`.
+
+**In-tournament xG-form (Group B) — validated, adopted.** Rolling xG-form
+predicts the next result better than rolling goals-form (3,742 obs: solo R²
+0.113 vs 0.097, +17%; in a joint model xG-form coef +0.61 vs goals +0.20).
+xG is the less-noisy strength signal. `ml/xgform_proto.py`. Wired as a bounded
+in-tournament Elo nudge (`service.xg_form_delta`): a team out-performing its
+scoreline on xG (unlucky) is rated up, an over-performer down — magnitude
+grounded (~190 Elo/goal applied as a small capped fraction, ±25 Elo, decaying
+n/(n+2)), feeding every goal target, and graded in the factor scorecard. Same
+bounded-prior + live-audit discipline as the seeding prior.
