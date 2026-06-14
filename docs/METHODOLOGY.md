@@ -228,3 +228,31 @@ graph — the team-result network — is **already exploited by Elo / pi-ratings
 (rating propagation over the head-to-head graph). We therefore keep the
 calibrated ensemble and did **not** wire graph features into production. The
 prototype is retained as a reproducible negative result.
+
+
+## 9. Tactical corner deep-dive (enriched 5,232-match dataset)
+
+To push corner O/U we enriched the event-level dataset to **5,232 team-match
+rows** — all modern men's StatsBomb open competitions (WC 2018/22, Euro 20/24,
+Copa 24, AFCON 23, plus full club seasons: PL/La Liga/Ligue 1/Serie A 2015-16,
+Bundesliga, La Liga 2004-21, etc.) — and fit corner mechanism + matchup terms
+(`ml/statsbomb_dataset.py`, `ml/corner_tactics_fit.py`).
+
+**Findings (Poisson GLM, club/intl controlled):**
+- Our intl corner coefficients are **confirmed on 16× more data**: crosses→corner
+  ratio **0.389** and intl base **9.07** are unchanged (club runs higher: 0.429 / 10.06).
+- **Box entries** (passes into the penalty area) are the **single strongest**
+  corner predictor (r=0.67, stable across club+intl) — more than crosses (r≈0.5)
+  and add real signal beyond crosses+possession+shots (AIC 22983→22166, p<0.001).
+  Wide-final-third entries also add (p<0.001); byline crosses do not (p=0.10).
+- **Tactical counter-matchup does NOT amplify corners.** wide-attack × opponent-
+  concede interaction is significant but *negative/sub-additive* (coef −0.0037,
+  p=0.002) — the two main effects already capture it; an amplifying "khắc chế"
+  term would be unjustified, so none was added.
+
+**Serving impact:** none changed — the intl model is validated, and the
+strongest new feature (box entries) is event-level, not available for WC-2026
+live (LiveScore has no passing network). A candidate, NOT yet adopted: a
+**shots-in-box proxy from the LiveScore shotmap**, fit against corners on the
+StatsBomb shot locations — to be tested once enough WC-2026 matches accumulate
+to validate it (measure-first; don't ship unvalidated).

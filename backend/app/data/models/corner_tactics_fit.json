@@ -1,0 +1,9 @@
+{
+ "n": 5232,
+ "b2_aic_base": 22982.8,
+ "b2_aic_tactical": 22165.5,
+ "b3_interaction": {
+  "coef": -0.00374,
+  "p": 0.0022
+ }
+}
