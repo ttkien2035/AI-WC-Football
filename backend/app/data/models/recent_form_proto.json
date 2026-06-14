@@ -1,0 +1,27 @@
+{
+ "n_matches_usable": 548,
+ "n_test_holdout": 165,
+ "baseline_rps_cv": 0.1921,
+ "baseline_mae_cv": 1.4699,
+ "sets": {
+  "base": {
+   "rps_holdout": 0.1888,
+   "mae_holdout": 1.344,
+   "rps_cv": 0.1921,
+   "mae_cv": 1.4699
+  },
+  "lean+events": {
+   "rps_holdout": 0.1835,
+   "mae_holdout": 1.3434,
+   "rps_cv": 0.1848,
+   "mae_cv": 1.4721
+  },
+  "full+events": {
+   "rps_holdout": 0.1892,
+   "mae_holdout": 1.363,
+   "rps_cv": 0.1875,
+   "mae_cv": 1.4671
+  }
+ },
+ "verdict": "recent-form EVENTS add pre-match value (lean+events) -> wire in"
+}

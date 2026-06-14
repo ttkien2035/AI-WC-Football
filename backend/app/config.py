@@ -190,6 +190,12 @@ class Settings(BaseSettings):
     xg_form_elo: float = 40.0    # Elo per (goal/game) of xG-vs-result luck
     xg_form_cap: float = 25.0    # max |nudge| Elo
     xg_form_k: float = 2.0       # confidence decay: weight = n/(n+k)
+    # pre-match shot-volume form nudge (recent_form_proto: recent shot-volume
+    # differential improves OUTCOME +0.007 RPS, 4/4 CV folds; shot_form_fit
+    # grounds the Elo coef on the PARTIAL slope after Elo+goal-form, p<1e-4).
+    # Coefficient/cap/k live in data/models/shot_form.json (regenerate via
+    # ml.espn_backfill + ml.shot_form_fit). 44/48 WC teams covered (free, ESPN).
+    shot_form_enabled: bool = True
 
     corners_base: float = 9.07
     # adaptive base: blend the prior with the observed tournament mean, n/(n+k).

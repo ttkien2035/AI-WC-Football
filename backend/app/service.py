@@ -201,6 +201,41 @@ def xg_form_delta(tla: str) -> float:
     return round(max(-settings.xg_form_cap, min(settings.xg_form_cap, raw)), 1)
 
 
+from pathlib import Path  # noqa: E402
+_SHOT_FORM_FILE = Path(__file__).resolve().parent / "data" / "models" / "shot_form.json"
+_shot_form_table = None
+
+
+def _shot_form() -> dict:
+    """Lazy-load the precomputed shot-form table (data/models/shot_form.json)."""
+    global _shot_form_table
+    if _shot_form_table is None:
+        try:
+            _shot_form_table = json.loads(_SHOT_FORM_FILE.read_text())
+        except Exception:
+            _shot_form_table = {}
+    return _shot_form_table
+
+
+def shot_form_delta(tla: str) -> float:
+    """Pre-match rating nudge from recent shot-volume form (last-5 internationals,
+    ESPN). A team out-shooting the field beyond what its Elo + goal-form already
+    show is slightly stronger than rated. Bounded, shrunk by games seen.
+    Coefficient/cap from shot_form.json (partial slope p<1e-4; +0.007 RPS, 4/4 CV
+    folds in recent_form_proto). 0 when disabled or no recent shot data."""
+    if not settings.shot_form_enabled:
+        return 0.0
+    tbl = _shot_form()
+    rec = (tbl.get("teams") or {}).get(tla)
+    if not rec:
+        return 0.0
+    n = rec.get("n", 0)
+    w = n / (n + tbl.get("k", 2.0))
+    raw = tbl.get("elo_per_unit", 0.0) * rec.get("form", 0.0) * w
+    cap = tbl.get("cap", 25.0)
+    return round(max(-cap, min(cap, raw)), 1)
+
+
 def observed_corner_mean() -> tuple[float, int] | None:
     """Tournament-wide mean TOTAL corners per finished match (self-learning
     signal): the club-fitted base over-predicts WC corners, so we measure the
@@ -476,8 +511,9 @@ async def predict(home: str, away: str, minute: int | None = None,
         teams[away]["elo"] - pen_a + seed_d_a)
     # in-tournament xG-form nudge (unlucky-on-xG team rated up; Group-B validated)
     xgf_h, xgf_a = xg_form_delta(home), xg_form_delta(away)
-    elo_adjust = (-pen_h + seed_d_h + sup["home"] + xgf_h,
-                  -pen_a + seed_d_a + sup["away"] + xgf_a)
+    shf_h, shf_a = shot_form_delta(home), shot_form_delta(away)
+    elo_adjust = (-pen_h + seed_d_h + sup["home"] + xgf_h + shf_h,
+                  -pen_a + seed_d_a + sup["away"] + xgf_a + shf_a)
     rc = (fixture or {}).get("red_cards") or {}
     red_cards = (rc.get("home", 0), rc.get("away", 0))
 
@@ -509,8 +545,8 @@ async def predict(home: str, away: str, minute: int | None = None,
 
     pred = match_model.predict_match(
         home_tla=home, away_tla=away,
-        elo_h=teams[home]["elo"] - pen_h + seed_d_h + sup["home"] + xgf_h,
-        elo_a=teams[away]["elo"] - pen_a + seed_d_a + sup["away"] + xgf_a,
+        elo_h=teams[home]["elo"] - pen_h + seed_d_h + sup["home"] + xgf_h + shf_h,
+        elo_a=teams[away]["elo"] - pen_a + seed_d_a + sup["away"] + xgf_a + shf_a,
         home_stats=teams[home], away_stats=teams[away],
         lg_avg_per_team=lg_avg,
         market=market,
@@ -580,6 +616,7 @@ async def predict(home: str, away: str, minute: int | None = None,
         "home_pot": pot_of(home), "away_pot": pot_of(away),
         "prior_delta": {"home": seed_d_h, "away": seed_d_a},
         "xg_form_delta": {"home": xgf_h, "away": xgf_a},
+        "shot_form_delta": {"home": shf_h, "away": shf_a},
         "group_difficulty": {"home": group_difficulty(home),
                              "away": group_difficulty(away)},
     }

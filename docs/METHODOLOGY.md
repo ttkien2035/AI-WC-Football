@@ -268,6 +268,28 @@ pressing (p=0.38) adds to total goals; possession dominance barely predicts wins
 (r=0.05). The style λ-multiplier was halved (`style_total_max` 0.06→0.03) and the
 style→W/D/L supremacy cap cut (±18→±10 Elo) — kept small, audited live.
 
+### 4.7 Pre-match shot-form (recent shot-volume differential)
+
+The in-tournament xG-form (§4.5) is empty before a team has played; the WC-2026
+**pre-match** product needs a recent-form signal from outside the tournament.
+We back-filled recent internationals (qualifiers, Nations League, friendlies,
+finals) from two open sources and tested whether rolling shot-volume form adds to
+a strength + goal-form baseline.
+
+A first single-split test read *null* — but that was a false-null from
+over-parameterisation (14 event features on 383 matches). With a parsimonious
+3-feature diff set and a 4-fold time-series CV, recent **shot-volume differential
+improves OUTCOME** robustly: RPS −0.007 on the holdout *and* −0.007 across 4/4 CV
+folds (ESPN, 808 matches), independently corroborated on a second corpus
+(Sofascore, 432 matches: RPS −0.016). The effect is shots > shots-on-target ≫
+possession; it does **not** help totals (flat MAE). **Adopted** as a bounded Elo
+offset (`shot_form_delta`): per-team `clip(elo_per_unit·(form−mean), ±20)·n/(n+2)`,
+with `elo_per_unit` set by the data spread (±2σ→±cap) rather than the inflated
+crude-Elo partial slope (p<1e-4) — direction validated, magnitude bounded,
+scorecard-audited. Coverage 44/48 teams; coefficient/table regenerate from
+`ml.espn_backfill` + `ml.shot_form_fit`. Source is **free** (ESPN); see §5 for why
+the paid xG/box-entry alternatives were rejected.
+
 ---
 
 ## 5. Negative results (tested, rejected)
@@ -283,9 +305,15 @@ assumed:
 | shots-in-box (shotmap) proxy for box entries | 5,232-match GLM | +AIC 22 vs box-entry's 817 — negligible |
 | Style/tactics → 1X2 beyond strength | §4.6 | weak, shrunk not added |
 | Player cohesion / "found out" / solo breakthrough | — | not validatable (no labels); variance, not signal |
+| Real xG-form (paid) beats free shot-form for 1X2 | Sofascore corpus, 432 matches, holdout+CV | shots ≥ xG (+both ≈ +shots) — paid xG **not worth it** |
+| Box-entries / big-chances / xG → totals | same corpus, Poisson MAE | all worse on CV — null |
+| Final-third entries → corners | same corpus | looked +0.13 MAE at n=56 but **flipped to worse at n=183** — small-sample artifact, null |
 
 The only genuinely useful graph — the team-result network — is already exploited
-by Elo/pi-rating propagation.
+by Elo/pi-rating propagation. The shot-form result (§4.7) and the three rows above
+came from a deliberate data-source study: the **free** ESPN proxy is sufficient; no
+RapidAPI-paid event feature (real xG, big chances, final-third entries) beat it, so
+the paid quota is reserved rather than spent on serving null features.
 
 ---
 
@@ -330,8 +358,17 @@ python -m ml.attdef_lambda_proto  # attack/defence λ vs Elo-gap
 python -m ml.xgform_proto         # xG-form vs goal-form
 python -m ml.fatigue_proto        # rest/fatigue (null)
 python -m ml.squad_strength       # squad prior (Wikipedia × ClubElo)
+python -m ml.espn_backfill        # free ESPN intl corpus (recent shot-form)
+python -m ml.recent_form_proto    # §4.7 shot-form vs strength (holdout+CV)
+python -m ml.shot_form_fit        # ground shot-form Elo coef + team table
+python -m ml.sofa_backfill        # Sofascore corpus (xG/box/corners) — RapidAPI
+python -m ml.sofa_form_proto      # §5 xG/box/corner premium features (null)
 python -m ml.make_figures         # regenerate the figures in this paper
 ```
+
+RapidAPI keys (`RAPIDAPI_KEY*`) and the data cache live outside git (`.env`,
+`backend/ml/data/`); `ml.rapid_client` caches every call to disk and rotates keys
+on quota exhaustion. The ESPN path needs no key.
 
 Artifacts: `backend/app/data/models/*_fit.json`. StatsBomb data used under their
 licence — attribution: StatsBomb. All predictions are statistical estimates for
@@ -346,7 +383,9 @@ graded LIVE. **After matchday 1 of all 12 groups** (~24 real matches), re-read
 the scorecards and keep / disable / re-fit each:
 
 - [ ] Factor scorecard verdicts: `style`, `context`, `venue`, `prior`,
-      `style_sup`, `xg_form` → disable any "hurting" (n≥~10) via its env flag.
+      `style_sup`, `xg_form`, `shot_form` → disable any "hurting" (n≥~10) via its env flag.
+- [ ] Refresh shot-form table (`ml.espn_backfill --months 3` + `ml.shot_form_fit`)
+      so WC-2026 results enter the rolling window; re-check `shot_form` verdict.
 - [ ] Corners scorecard + adaptive base (9.07 → observed).
 - [ ] sim-timing scorecard (ht_flip / late-goal / comeback / clean-sheet).
 - [ ] meta-weights (W/D/L blend; active ≥8 finished).
@@ -482,6 +521,7 @@ All are serving knobs (no retrain needed); values are the current defaults.
 | `corners_cross_to_corner` | 0.389 | fitted crosses→corner ratio (§4.1) |
 | `corners_adapt_k` | 20 | how slowly the corner base tracks observed WC corners |
 | `xg_form_elo` / `xg_form_cap` / `xg_form_k` | 40 / 25 / 2 | in-tournament xG-form Elo nudge (§4.5) |
+| `shot_form_enabled` | true | pre-match shot-form Elo nudge (§4.7); coef/cap in `shot_form.json` |
 | `style_total_max` | 0.03 | max style effect on total goals (§4.6) |
 | `style_sup_max_elo` | 10 | max style→W/D/L Elo nudge (§4.6) |
 | `sim_state_effect` | (table) | minute-sim score-state response (§4.3, from sim_fit.json) |

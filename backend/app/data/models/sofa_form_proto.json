@@ -1,0 +1,56 @@
+{
+ "n_matches": 432,
+ "n_usable": 183,
+ "outcome_xg_vs_shots": {
+  "base": {
+   "hold": 0.1991,
+   "cv": 0.2137
+  },
+  "+shots": {
+   "hold": 0.1831,
+   "cv": 0.2011
+  },
+  "+xg": {
+   "hold": 0.1892,
+   "cv": 0.206
+  },
+  "+both": {
+   "hold": 0.1819,
+   "cv": 0.2015
+  }
+ },
+ "totals_boxentry_bigchance": {
+  "base": {
+   "hold": 1.2021,
+   "cv": 1.3922
+  },
+  "+box": {
+   "hold": 1.2864,
+   "cv": 1.707
+  },
+  "+bigch": {
+   "hold": 1.2521,
+   "cv": 1.6959
+  },
+  "+xg": {
+   "hold": 1.2086,
+   "cv": 1.3819
+  }
+ },
+ "corners_entries": {
+  "base": {
+   "hold": 2.9841,
+   "cv": 2.6233
+  },
+  "+entries": {
+   "hold": 3.0633,
+   "cv": 2.7196
+  }
+ },
+ "verdicts": {
+  "xg_form_vs_shot_form": "xG-form does NOT beat the free shot proxy (shots >= xg on hold+cv); +both ~= +shots -> real xG not worth RapidAPI quota for OUTCOME",
+  "totals_premium": "box-entries / big-chances / xG do NOT improve TOTALS beyond recent goal-form (worse on cv) -> null",
+  "corners_entries": "final-third entries / box touches do NOT improve CORNERS beyond recent corner rate (n=56 looked +0.13 but flipped to worse at n=183) -> null",
+  "actionable": "ONLY the free ESPN shot-form is worth wiring (already wired); no Sofascore-premium feature justified -> reserve quota"
+ }
+}
