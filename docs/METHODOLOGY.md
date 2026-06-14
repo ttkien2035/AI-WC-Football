@@ -3,6 +3,8 @@
 *AI World Cup 2026 Predictor — a research testbed for football-prediction
 algorithms (academic; not a betting product).*
 
+**Authors:** Kien Tran · Claude Code
+
 ## Abstract
 
 We describe the prediction methodology of an open World-Cup-2026 forecasting
@@ -69,8 +71,8 @@ render on GitHub.)
 
 ### 3.1 Pipeline overview
 
-Everything converges on a per-team expected-goals rate $\lambda$; one score
-matrix is built from $(\lambda_h,\lambda_a)$, reconciled to the headline
+Everything converges on a per-team expected-goals rate λ; one score
+matrix is built from (λ_h, λ_a), reconciled to the headline
 marginals, and every market is read off it. The minute simulator runs in
 parallel for scenario timing.
 
@@ -79,25 +81,24 @@ parallel for scenario timing.
 ### 3.2 Probabilistic scoring model — bivariate Poisson with Dixon-Coles
 
 **Theory.** Goals arrive approximately as a *Poisson process*, so a team's goal
-count in a match is Poisson with mean $\lambda$:
+count in a match is Poisson with mean λ:
 
-$$P(X=x)=\frac{e^{-\lambda}\,\lambda^{x}}{x!}\tag{1}$$
+![Eq (1)](figures/eq1.png)
 
 A match is two teams, so the baseline is a product of two independent Poissons.
 Empirically that **under-predicts draws** (0-0, 1-1). **Dixon & Coles (1997)**
 [1] correct exactly those low-score cells with a dependence factor
-$\tau_\rho$ controlled by $\rho$ (we fit $\rho\approx-0.06$):
+τ controlled by ρ (we fit ρ≈−0.06):
 
-$$P(h,a)=\mathrm{Pois}(h;\lambda_h)\,\mathrm{Pois}(a;\lambda_a)\,\tau_{\rho}(h,a)\tag{2}$$
+![Eq (2)](figures/eq2.png)
 
 **Strength parameterization (Maher 1982 [2]; Dixon-Coles [1]).** Each team gets
-an attack $\alpha$ and a defence $\beta$; the rate is log-linear, fit by
+an attack α and a defence β; the rate is log-linear, fit by
 maximum likelihood with exponential **time-decay** on 49k internationals:
 
-$$\log\lambda_{\text{home}}=c+\eta+\alpha_{h}+\beta_{a},\qquad
-  \log\lambda_{\text{away}}=c+\alpha_{a}+\beta_{h}\tag{3}$$
+![Eq (3)](figures/eq3.png)
 
-($\eta$ = home advantage). This separates a great-attack/weak-defence team from
+(η = home advantage). This separates a great-attack/weak-defence team from
 a balanced one of equal overall strength (§4.4).
 
 ### 3.3 Team strength → goal rate
@@ -105,13 +106,12 @@ a balanced one of equal overall strength (§4.4).
 **Elo** [3] updates a rating toward the result, scaled by surprise; the win
 expectation is logistic and the update proportional to the residual:
 
-$$E_h=\frac{1}{1+10^{-(R_h+H-R_a)/400}},\qquad R\leftarrow R+K\,(\text{result}-E)\tag{4}$$
+![Eq (4)](figures/eq4.png)
 
 We map the Elo gap to a symmetric goal rate and **blend** it with the
 asymmetric Dixon-Coles rate (Eq. 3):
 
-$$\lambda=(1-w)\underbrace{\exp\!\big(a\pm b\,\Delta_{\text{elo}}/100\big)}_{\lambda_{\text{elo}}}
-  +\,w\,\lambda_{\text{dc}},\qquad w=0.5\tag{5}$$
+![Eq (5)](figures/eq5.png)
 
 ### 3.4 The ML ensemble (W/D/L and O/U heads)
 
@@ -122,19 +122,16 @@ fit to the loss gradient, capturing non-linear interactions). Tree outputs are
 **isotonic-calibrated** [6], then convex-blended with weights minimising the
 **Ranked Probability Score** [7] — the proper scoring rule for ordered W/D/L:
 
-$$p_{\text{wdl}}=\mathrm{norm}\!\big(w_{\text{lr}}\,p_{\text{lr}}
-  +w_{\text{xgb}}\,\mathrm{iso}(p_{\text{xgb}})\big),\quad
-  (w)=\arg\min \;\mathrm{RPS}_{\text{holdout}}\tag{6}$$
+![Eq (6)](figures/eq6.png)
 
 ### 3.5 Reconciliation as a minimum-KL projection (IPF)
 
-We want the single matrix $M$ matching the blended headline marginals while
-staying closest to the Dixon-Coles prior $M_0$. "Closest" in information geometry
+We want the single matrix M matching the blended headline marginals while
+staying closest to the Dixon-Coles prior M₀. "Closest" in information geometry
 is the **I-projection** — minimise KL divergence subject to the marginal
 constraints (Csiszár 1975 [8]):
 
-$$M=\arg\min_{M\in\mathcal{C}} \mathrm{KL}(M\,\|\,M_0),\quad
-  \mathcal{C}=\{\text{W/D/L, Over2.5, BTTS marginals fixed}\}\tag{7}$$
+![Eq (7)](figures/eq7.png)
 
 **Iterative Proportional Fitting** (Deming-Stephan 1940 [9]; Sinkhorn 1967 [10])
 solves it by cyclically rescaling each constrained region to its target:
@@ -153,14 +150,13 @@ reconcile_matrix(M0, targets):
 
 The closed-form matrix gives the final-score law but no *timeline*. We simulate
 an **inhomogeneous Poisson process** over 90 minutes (Dixon-Robinson 1998 [11])
-with (i) a fitted per-minute intensity $w(m)$, $\sum_m w(m)=1$; (ii) score-state
+with (i) a fitted per-minute intensity w(m), Σ w(m)=1; (ii) score-state
 feedback (trailing team ↑, leader →, estimated causally, §3.8); (iii)
-**parameter uncertainty** — each trial draws $\lambda$ from a **Gamma** prior, so
+**parameter uncertainty** — each trial draws λ from a **Gamma** prior, so
 the marginal count is **negative-binomial**, reproducing the observed
 over-dispersion (§4.2):
 
-$$\tilde\lambda\sim\mathrm{Gamma}(k,\theta),\quad X\mid\tilde\lambda\sim\mathrm{Pois}(\tilde\lambda)
-  \;\Rightarrow\; X\sim\mathrm{NegBin}\tag{8}$$
+![Eq (8)](figures/eq8.png)
 
 ```
 simulate(λ_h, λ_a, N):
@@ -178,11 +174,10 @@ Validated equal to the matrix on W/D/L, so the headline stays from the matrix.
 ### 3.7 Bounded priors and Bayesian shrinkage
 
 Seeding, squad-strength and xG-form are **Elo offsets** shrunk by evidence. The
-$n/(n+k)$ weight is the Bayesian posterior weight on $n$ noisy observations
+n/(n+k) weight is the Bayesian posterior weight on n noisy observations
 (precision-weighted mean); clipping bounds a thin sample:
 
-$$\delta=\mathrm{clip}\!\big(\text{scale}\cdot\text{signal},\,\pm\text{cap}\big)\cdot\frac{n}{n+k},
-  \qquad \text{eff.\ Elo}=\text{base}+\textstyle\sum\delta\tag{9}$$
+![Eq (9)](figures/eq9.png)
 
 ### 3.8 Strength-controlled causal estimation
 
@@ -190,8 +185,7 @@ Some effects are **confounded** (strong teams both lead and score). To recover
 the causal within-match effect we fit a Poisson GLM with the team's own expected
 rate as a fixed **offset**, identifying the coefficient net of quality:
 
-$$\log\mu=\beta\cdot\text{state}+\log(\text{team xG/min}),\qquad
-  \text{multiplier}(\text{state})=e^{\beta}\tag{10}$$
+![Eq (10)](figures/eq10.png)
 
 ## 4. Experiments and results
 

@@ -163,10 +163,36 @@ def fig_architecture():
     fig.tight_layout(); fig.savefig(FIG / "architecture.png"); plt.close(fig)
 
 
+# Equations rendered as images (matplotlib mathtext) so they display in ANY
+# markdown viewer — GitHub, VS Code preview, PDF — not just MathJax renderers.
+EQS = [
+    r"P(X{=}x)=\frac{e^{-\lambda}\,\lambda^{x}}{x!}",
+    r"P(h,a)=\mathrm{Pois}(h;\lambda_h)\,\mathrm{Pois}(a;\lambda_a)\,\tau_{\rho}(h,a)",
+    r"\log\lambda_{\mathrm{home}}=c+\eta+\alpha_h+\beta_a\ ,\quad \log\lambda_{\mathrm{away}}=c+\alpha_a+\beta_h",
+    r"E_h=\frac{1}{1+10^{-(R_h+H-R_a)/400}}\ ,\quad R\leftarrow R+K\,(\mathrm{result}-E)",
+    r"\lambda=(1-w)\,\exp(a\pm b\,\Delta_{\mathrm{elo}}/100)+w\,\lambda_{\mathrm{dc}}\ ,\quad w=0.5",
+    r"p_{\mathrm{wdl}}=\mathrm{norm}(w_{\mathrm{lr}}\,p_{\mathrm{lr}}+w_{\mathrm{xgb}}\,\mathrm{iso}(p_{\mathrm{xgb}}))\ ,\quad w=\mathrm{argmin}\ \mathrm{RPS}",
+    r"M=\mathrm{argmin}\ \mathrm{KL}(M\,\|\,M_0)\quad \mathrm{s.t.}\ \ \mathrm{W/D/L,\ Over,\ BTTS\ fixed}",
+    r"\tilde{\lambda}\sim\mathrm{Gamma}(k,\theta),\ \ X\,|\,\tilde{\lambda}\sim\mathrm{Pois}(\tilde{\lambda})\ \Rightarrow\ X\sim\mathrm{NegBin}",
+    r"\delta=\mathrm{clip}(\mathrm{scale}\cdot\mathrm{signal},\,\pm\mathrm{cap})\cdot\frac{n}{n+k}\ ,\quad \mathrm{eff.Elo}=\mathrm{base}+\sum\delta",
+    r"\log\mu=\beta\cdot\mathrm{state}+\log(\mathrm{team\ xG/min})\ ,\quad \mathrm{mult}(\mathrm{state})=e^{\beta}",
+]
+
+
+def make_equations():
+    for i, eq in enumerate(EQS, 1):
+        fig = plt.figure(figsize=(0.1, 0.1))
+        fig.text(0.5, 0.5, rf"$(\,{i}\,)\quad {eq}$", ha="center", va="center", fontsize=15)
+        fig.savefig(FIG / f"eq{i}.png", bbox_inches="tight", pad_inches=0.12,
+                    dpi=130, facecolor="white"); plt.close(fig)
+    print(f"wrote {len(EQS)} equation images")
+
+
 def main():
     for f in (fig_architecture, fig_corner_determinants, fig_total_dispersion,
               fig_ou_reliability, fig_sim_state, fig_attdef, fig_xgform):
         f(); print("wrote", f.__name__)
+    make_equations()
     print("figures ->", FIG)
 
 
