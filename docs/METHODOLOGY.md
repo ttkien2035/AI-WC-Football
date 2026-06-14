@@ -187,6 +187,57 @@ rate as a fixed **offset**, identifying the coefficient net of quality:
 
 ![Eq (10)](figures/eq10.png)
 
+### 3.9 Factors studied — and where each enters the engine
+
+We did not hand-pick a few features; we systematically studied the football
+factors a human analyst reasons about — **strength, form, attack-vs-defence
+match-ups, playing style, tactics, in-match strategy, competition context and
+pitch conditions** — and for each measured whether it carried signal beyond raw
+strength before letting it touch a prediction. A factor enters the engine through
+one or more of three channels: **(P) Probability** — the analytic bivariate-Poisson
++ Dixon-Coles + reconciliation path; **(S) Simulation** — the minute-by-minute
+Dixon-Robinson Monte-Carlo; **(T) Training** — an offline-fitted coefficient or ML
+artifact. Most factors modify the goal rate λ and therefore feed **both** P and S;
+a few are channel-specific (reconciliation is analytic-only; score-state response,
+timing and red cards are simulation-only). The table is the honest scope of the
+study — adopted, shrunk, and rejected together.
+
+| Factor (what it captures) | P | S | T | Status & evidence |
+|---|:--:|:--:|:--:|---|
+| **Team strength** (Elo / pi-rating, home & host edge) | ✓ | ✓ | ✓ | core λ + WDL; the baseline every other factor must beat |
+| **Bivariate Poisson + Dixon-Coles** τ/ρ (low-score dependence) | ✓ |  | ✓ | core scoring model (§3.2) |
+| **Attack/defence λ** (asymmetric forward-vs-defender match-up) | ✓ | ✓ | ✓ | **adopted** — O/U Brier 0.251→0.244, MAE 1.48→1.42 (§4.4) |
+| **xG-form** (in-tournament over/under-performance vs scoreline) | ✓ | ✓ | ✓ | **adopted** — xG-form > goals-form, +17% R² (§4.5) |
+| **Shot-form** (pre-match recent shot-volume differential) | ✓ | ✓ | ✓ | **adopted** — RPS −0.007, 4/4 CV folds, free ESPN (§4.7) |
+| **ML ensemble** (XGBoost + logistic, isotonic-calibrated) | ✓ |  | ✓ | WDL/O/U/BTTS heads, RPS 0.1605 (§3.4) |
+| **Reconciliation** (min-KL / IPF projection) | ✓ |  |  | forces 1X2 ↔ score ↔ O/U ↔ handicap consistency (§3.5) |
+| **Playing style** (possession balance, pressing intensity) | ✓ | ✓ | ✓ | **shrunk** — weak beyond shots (p=0.29/0.38); λ-mult 0.06→0.03, sup ±18→±10 (§4.6) |
+| **Crossing → corners** (mechanism, cross→corner 0.389) | ✓ |  | ✓ | **adopted** — corners from crossing volume, not noisy raw count (§4.1) |
+| **Style-matchup corners** (crossfest vs low-block, ±12%) | ✓ |  | ✓ | bounded style multiplier on total corners |
+| **Score-state strategy** (leader eases / chaser pushes) |  | ✓ | ✓ | **adopted, de-confounded** via strength-controlled GLM (§3.8, §4.3) |
+| **Style-conditioned in-play** (lead-hold, chase-damp, press-early) |  | ✓ | ✓ | trait-dependent minute response in the simulator |
+| **Knockout strategy** (stage caginess, big-mismatch lockdown, ET) | ✓ | ✓ |  | bounded λ caution escalating toward the final |
+| **Match context** (dead rubber, must-win decider, finish-2nd-to-dodge) | ✓ | ✓ |  | bounded λ multiplier from group/seeding stakes |
+| **Venue conditions** (altitude ↑, heat ↓, roof/AC) | ✓ | ✓ |  | bounded total-goals factor — WC-2026 fixed venues |
+| **Weather** (Open-Meteo apparent-temp at kickoff) | ✓ | ✓ |  | scales the heat cut when a forecast exists |
+| **Seeding / pot-tier prior** (official draw pots) | ✓ | ✓ | ✓ | bounded Elo prior, decays n/(n+k) as a team plays (§3.7) |
+| **Squad strength** (Wikipedia squads × ClubElo) | ✓ | ✓ | ✓ | refines the pot prior, coverage-weighted |
+| **Over-dispersion** (Gamma-Poisson → NegBinom, corners) | ✓ |  | ✓ | corners variance ~2× Poisson |
+| **Meta-weights** (learn the WDL blend from finished matches) | ✓ |  | ✓ | online, shrunk n/(n+8), active ≥8 games |
+| **Adaptive bases** (corners base → observed in-tournament mean) | ✓ |  |  | self-corrects the level as matches accumulate |
+| **Red cards / live state** (minutes, goals, cards) |  | ✓ |  | re-estimates remaining-match λ in-play |
+| Passing-network / GNN style embedding | — | — | — | **rejected** — no gain beyond strength (§5) |
+| Tactical counter-matchup → corners | — | — | — | **rejected** — sub-additive (§5) |
+| Rest / fixture congestion | — | — | — | **rejected** — null (§5) |
+| Real xG-form, box-entries, big-chances (paid) | — | — | — | **rejected** — no gain over free shot-form (§5) |
+| Player cohesion / "found out" / solo breakthrough | — | — | — | **not validatable** — no labels (§5) |
+
+The discipline is uniform: a factor is **adopted** only if it beats the strength
+baseline out-of-sample, **shrunk** toward zero if the effect is real but weak, and
+**rejected with the measurement recorded** (§5) otherwise. Bounded factors are
+additionally graded LIVE during the tournament (§6) and can be disabled by an env
+flag without code change.
+
 ## 4. Experiments and results
 
 All fits run offline (`backend/ml/*.py`) and write JSON artifacts read at serving
