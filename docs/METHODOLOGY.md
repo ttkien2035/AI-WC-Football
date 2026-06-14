@@ -309,3 +309,116 @@ the scorecards and keep / disable / re-fit each:
 
 Not yet built: §2C derived markets (clean-sheet, win-to-nil, odd/even, HT/FT,
 first/next goal) — free from the reconciled matrix/sim, zero accuracy risk.
+
+
+---
+
+## Appendix A — Glossary (terms & metrics)
+
+**Elo** — a relative team-strength rating updated after each match: beat a
+stronger side and you gain more points than beating a weaker one. ~1500 is
+average; WC contenders sit ~1900–2150. A ~190-Elo gap ≈ one expected goal of
+supremacy here. Used as the backbone strength signal.
+
+**xG (expected goals)** — the number of goals an *average* finish would yield
+from the chances created, summing each shot's scoring probability by its
+location/type. A team with xG 2.1 "deserved" ~2 goals regardless of the actual
+score. Less noisy than goals → a better strength signal (§4.5).
+
+**λ (lambda)** — a team's expected goals *in this match* (the Poisson mean).
+The whole engine converts strength → λ_home, λ_away, then a goal distribution.
+
+**Poisson distribution** — the standard count model for goals: given mean λ,
+it gives P(0), P(1), P(2)… goals. Two independent Poissons give a score grid.
+
+**Dixon-Coles** — a bivariate-Poisson refinement that (a) corrects the
+correlation of low scores (0-0, 1-1) via parameter **ρ (rho)**, and (b) rates
+each team by separate **attack (att)** and **defence (def)** strengths rather
+than one number (§4.4).
+
+**pi-rating** — an alternative rolling rating from goal differences; a secondary
+strength feature in the ensemble.
+
+**O/U (Over/Under)** — a goals (or corners) total line, e.g. "Over 2.5": will
+the match have ≥3? **Asian line** — the same at non-integer/quarter lines
+(2.25, 2.75) where a quarter-line splits the stake.
+
+**Asian handicap (kèo chấp)** — a goal head-start: "home −1.5" wins only if home
+wins by 2+. Read from the score matrix as P(margin + line > 0).
+
+**BTTS** — Both Teams To Score (yes/no).
+
+**IPF (iterative proportional fitting)** — the algorithm (Alg. 1) that nudges
+the score matrix the least amount needed to match target marginals, so all
+markets stay consistent.
+
+**GLM / Poisson regression** — a regression for count outcomes (e.g. corners);
+its coefficients say how each feature shifts the expected count. **offset** — a
+fixed known term in a GLM (here log team-xG) used to *control for* strength.
+
+**Hold-out** — matches set aside from training, used to test honestly.
+**Leave-one-tournament-out** — train on all tournaments but one, test on the
+held-out one (no leakage).
+
+**RPS (Ranked Probability Score)** — error metric for ordered outcomes (W/D/L);
+lower is better (ours 0.1605). **Brier score** — squared error for a yes/no
+probability (O/U, BTTS); lower is better. **log-loss** — penalises confident
+wrong probabilities; used for exact-score. **MAE** — mean absolute error (e.g.
+predicted vs actual total goals). **ECE** — Expected Calibration Error: average
+gap between predicted probability and observed frequency.
+
+**Calibration / reliability** — does "60%" happen ~60% of the time? A reliability
+diagram plots predicted vs observed; the diagonal is perfect (Fig 3).
+**Isotonic calibration** — a monotone map that corrects miscalibrated
+probabilities.
+
+**Over-dispersion (Var/Mean > 1)** — real goal counts spread wider than a single
+Poisson predicts (fatter 0–1 and 7+ tails, Fig 2).
+
+**Confound / strength-controlled** — a spurious association from a lurking
+variable (strong teams both lead *and* score); we remove it with a control
+(Alg. 4, §4.3).
+
+**Bounded prior** — a small, capped adjustment whose direction comes from theory
+but whose size is limited and audited, so it can't dominate the data.
+
+---
+
+## Appendix B — Mathematical notation
+
+| Symbol | Meaning |
+|---|---|
+| λ_h, λ_a | expected goals (Poisson mean) for home / away this match |
+| Δelo | effective Elo difference (home + home-adv + priors − away) |
+| a, b | fitted goal-rate coefficients: `λ = exp(a ± b·Δelo/100)` |
+| att_x, def_x | Dixon-Coles attack / defence rating of team x |
+| c, adv | Dixon-Coles intercept / home-advantage term |
+| ρ (rho) | Dixon-Coles low-score correlation (≈ −0.06) |
+| w | blend weight of att/def into λ (`goal_dc_weight`, 0.5) |
+| M | the reconciled score matrix M[h,a] = P(home h, away a) |
+| n, k | matches played; shrink constant in `n/(n+k)` |
+| δ | a bounded Elo offset (prior); `clip(scale·signal, ±cap)·n/(n+k)` |
+| r | Pearson correlation coefficient |
+| p | statistical p-value (significant if < 0.05) |
+| R² | variance explained by a regression |
+
+---
+
+## Appendix C — Tunable parameters (env-overridable)
+
+All are serving knobs (no retrain needed); values are the current defaults.
+
+| Parameter | Value | Controls |
+|---|---|---|
+| `goal_dc_weight` | 0.5 | att/def share of the goal λ (§4.4) |
+| `ou_head_weight` / `btts_head_weight` | 0.95 / 0.9 | trust the calibrated O/U head over the raw matrix (§4.2) |
+| `ou_total_scale` | 0.94 | total-goals scale of the Asian-line matrix (§4.2) |
+| `corners_base` | 9.07 | intl mean total corners, then adaptive |
+| `corners_cross_to_corner` | 0.389 | fitted crosses→corner ratio (§4.1) |
+| `corners_adapt_k` | 20 | how slowly the corner base tracks observed WC corners |
+| `xg_form_elo` / `xg_form_cap` / `xg_form_k` | 40 / 25 / 2 | in-tournament xG-form Elo nudge (§4.5) |
+| `style_total_max` | 0.03 | max style effect on total goals (§4.6) |
+| `style_sup_max_elo` | 10 | max style→W/D/L Elo nudge (§4.6) |
+| `sim_state_effect` | (table) | minute-sim score-state response (§4.3, from sim_fit.json) |
+| `*_enabled` flags | true | per-factor on/off for the live-audit kill-switch (§6) |
+
