@@ -119,9 +119,53 @@ def fig_xgform():       # §11 results
     fig.tight_layout(); fig.savefig(FIG / "xgform.png"); plt.close(fig)
 
 
+def fig_architecture():
+    from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+    fig, ax = plt.subplots(figsize=(8.2, 6.4)); ax.axis("off")
+    ax.set_xlim(0, 10); ax.set_ylim(2.4, 10.4); ax.grid(False)
+
+    def box(x, y, w, h, text, fc, ec="#334155", fs=8.5):
+        ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle="round,pad=0.02,rounding_size=0.12",
+                     fc=fc, ec=ec, lw=1.2))
+        ax.text(x + w / 2, y + h / 2, text, ha="center", va="center", fontsize=fs)
+
+    def arrow(x1, y1, x2, y2):
+        ax.add_patch(FancyArrowPatch((x1, y1), (x2, y2), arrowstyle="-|>",
+                     mutation_scale=12, color="#475569", lw=1.1))
+
+    BL, GR, AM, PU = "#e0f2fe", "#dcfce7", "#fef3c7", "#ede9fe"
+    # row 1: strength inputs
+    inps = ["Elo\n(live)", "Seeding /\nsquad prior", "Key\nabsences",
+            "Style\nsupremacy", "xG-form\n(in-tourn.)"]
+    for i, t in enumerate(inps):
+        box(0.2 + i * 1.95, 9.2, 1.7, 0.95, t, BL, fs=7.5)
+    box(2.6, 7.9, 3.0, 0.7, "effective Elo", GR)
+    box(6.1, 7.9, 3.6, 0.7, "Dixon-Coles att/def", PU)
+    for i in range(5):
+        arrow(1.05 + i * 1.95, 9.2, 4.1, 8.6)
+    # row 2: lambda
+    box(3.3, 6.6, 3.4, 0.7, "λ_h , λ_a   (goal-rate blend)", GR, fs=8)
+    arrow(4.1, 7.9, 4.6, 7.3); arrow(7.9, 7.9, 6.0, 7.3)
+    # ML + market -> headline
+    box(0.2, 6.6, 2.7, 0.7, "ML ensemble\n+ market", AM, fs=7.5)
+    box(7.0, 6.6, 2.8, 0.7, "headline W/D/L, O/U\n(meta-blend)", AM, fs=7.5)
+    arrow(2.9, 6.6, 3.3, 6.6); arrow(6.7, 6.7, 7.0, 6.7)
+    # reconcile
+    box(3.0, 5.2, 4.0, 0.8, "reconcile_matrix  (IPF)\n→ ONE score matrix M", GR, fs=8)
+    arrow(5.0, 6.6, 5.0, 6.0); arrow(8.4, 6.6, 6.5, 6.0); arrow(1.5, 6.6, 3.0, 5.7)
+    # markets
+    box(0.2, 3.7, 5.0, 0.9, "W/D/L · scorelines · Asian O/U\n(goals & corners) · handicap · BTTS", BL, fs=8)
+    box(5.6, 3.7, 4.1, 0.9, "Dixon-Robinson minute MC\n→ scenarios, volatility", PU, fs=8)
+    arrow(4.2, 5.2, 2.7, 4.6); arrow(5.8, 5.2, 7.6, 4.6)
+    ax.text(5.0, 2.9, "All markets derive from one matrix M → mutually consistent",
+            ha="center", fontsize=8.5, style="italic", color="#475569")
+    ax.set_title("Fig 0. System architecture", fontsize=11)
+    fig.tight_layout(); fig.savefig(FIG / "architecture.png"); plt.close(fig)
+
+
 def main():
-    for f in (fig_corner_determinants, fig_total_dispersion, fig_ou_reliability,
-              fig_sim_state, fig_attdef, fig_xgform):
+    for f in (fig_architecture, fig_corner_determinants, fig_total_dispersion,
+              fig_ou_reliability, fig_sim_state, fig_attdef, fig_xgform):
         f(); print("wrote", f.__name__)
     print("figures ->", FIG)
 

@@ -63,178 +63,135 @@ Euro 2020/2024, Copa América 2024, AFCON 2023 and full club seasons
 
 This section gives the scientific basis of each core component — the
 probabilistic scoring model, the strength model, the ML ensemble, the
-consistency projection, and the Monte-Carlo simulator — with illustrative
-pseudocode. Notation is in Appendix B.
+consistency projection and the Monte-Carlo simulator — with numbered equations
+and illustrative pseudocode. Symbols are defined in Appendix B. (Equations
+render on GitHub.)
 
 ### 3.1 Pipeline overview
 
-Everything converges on a per-team expected-goals rate **λ**; one score matrix
-is built from (λ_h, λ_a), reconciled to the headline marginals, and every market
-is read off it. The minute simulator runs in parallel for scenario timing.
+Everything converges on a per-team expected-goals rate $\lambda$; one score
+matrix is built from $(\lambda_h,\lambda_a)$, reconciled to the headline
+marginals, and every market is read off it. The minute simulator runs in
+parallel for scenario timing.
 
-```
- Elo · seeding/squad prior · absences · style supremacy · xG-form  ─→ effective Elo
-        └─(⊕ Dixon-Coles attack/defence)─────────────────────────────→ λ_h, λ_a
- ML ensemble + market ─ meta-blend ─→ headline W/D/L, O/U
-        └─→ reconcile_matrix (IPF) ─→ ONE matrix M
-                ├─ W/D/L · scorelines · Asian O/U (goals, corners) · handicap · BTTS
-                └─ Dixon-Robinson minute MC ─→ scenarios (comeback, late goal, volatility)
-```
+![Fig 0. System architecture](figures/architecture.png)
 
 ### 3.2 Probabilistic scoring model — bivariate Poisson with Dixon-Coles
 
-**Theory.** Goals in football are well-modelled as a *Poisson process*: events
-arrive at a roughly constant rate, independently, so the count in 90 minutes is
-Poisson with mean λ. For a team scoring at rate λ,
+**Theory.** Goals arrive approximately as a *Poisson process*, so a team's goal
+count in a match is Poisson with mean $\lambda$:
 
-```
-P(X = x) = e^(−λ) · λ^x / x!          (Poisson pmf)
-```
+$$P(X=x)=\frac{e^{-\lambda}\,\lambda^{x}}{x!}\tag{1}$$
 
-A match has two teams, so the naive model is the **product of two independent
-Poissons** with means λ_h, λ_a — giving a score grid `P(h,a)=Pois(h;λ_h)·Pois(a;λ_a)`.
-Empirically this independence assumption **fails at low scores**: 0-0 and 1-1
-are more frequent than independence predicts (defensive/cautious dynamics).
-**Dixon & Coles (1997)** correct exactly these four cells with a parameter τ
-controlled by **ρ (rho)**:
+A match is two teams, so the baseline is a product of two independent Poissons.
+Empirically that **under-predicts draws** (0-0, 1-1). **Dixon & Coles (1997)**
+[1] correct exactly those low-score cells with a dependence factor
+$\tau_\rho$ controlled by $\rho$ (we fit $\rho\approx-0.06$):
 
-```
-P(h,a) = Pois(h;λ_h)·Pois(a;λ_a)·τ_ρ(h,a)
-τ adjusts only {(0,0),(0,1),(1,0),(1,1)};  ρ<0 lifts draws (we fit ρ≈−0.06)
-```
+$$P(h,a)=\mathrm{Pois}(h;\lambda_h)\,\mathrm{Pois}(a;\lambda_a)\,\tau_{\rho}(h,a)\tag{2}$$
 
-**Strength parameterization.** Rather than one rating, Dixon-Coles gives each
-team an **attack** αₜ and **defence** βₜ; the rate is log-linear:
+**Strength parameterization (Maher 1982 [2]; Dixon-Coles [1]).** Each team gets
+an attack $\alpha$ and a defence $\beta$; the rate is log-linear, fit by
+maximum likelihood with exponential **time-decay** on 49k internationals:
 
-```
-log λ_home = c + home_adv + α_home + β_away
-log λ_away = c +           α_away + β_home
-```
+$$\log\lambda_{\text{home}}=c+\eta+\alpha_{h}+\beta_{a},\qquad
+  \log\lambda_{\text{away}}=c+\alpha_{a}+\beta_{h}\tag{3}$$
 
-Parameters are fit by **maximum likelihood** with **time-decay** weighting
-(recent matches count more) on 49k internationals. This is what lets the model
-distinguish a great-attack/weak-defence side from a balanced one of equal
-overall strength (§4.4).
+($\eta$ = home advantage). This separates a great-attack/weak-defence team from
+a balanced one of equal overall strength (§4.4).
 
 ### 3.3 Team strength → goal rate
 
-**Elo.** A relative rating updated after each match toward the result, scaled by
-the surprise. The win expectation between ratings Rₕ, Rₐ is the logistic
+**Elo** [3] updates a rating toward the result, scaled by surprise; the win
+expectation is logistic and the update proportional to the residual:
 
-```
-E_home = 1 / (1 + 10^(−(R_home + H − R_away)/400))      (H = home advantage)
-R ← R + K·(result − E)          (K larger for big margins / big tournaments)
-```
+$$E_h=\frac{1}{1+10^{-(R_h+H-R_a)/400}},\qquad R\leftarrow R+K\,(\text{result}-E)\tag{4}$$
 
-**Goal rate from Elo.** We map the Elo gap to a symmetric goal rate via a fitted
-log-linear law, then blend the asymmetric Dixon-Coles rate (Alg. 2):
+We map the Elo gap to a symmetric goal rate and **blend** it with the
+asymmetric Dixon-Coles rate (Eq. 3):
 
-```
-λ_elo_h = exp(a + b·Δelo/100),  λ_elo_a = exp(a − b·Δelo/100)
-λ = (1−w)·λ_elo + w·λ_dc                     # w = goal_dc_weight = 0.5
-```
+$$\lambda=(1-w)\underbrace{\exp\!\big(a\pm b\,\Delta_{\text{elo}}/100\big)}_{\lambda_{\text{elo}}}
+  +\,w\,\lambda_{\text{dc}},\qquad w=0.5\tag{5}$$
 
 ### 3.4 The ML ensemble (W/D/L and O/U heads)
 
-**Theory.** Two complementary learners over pre-match features (Elo gap,
-pi-ratings, rolling form, tournament importance, neutral-venue flag):
+Two complementary learners over pre-match features (Elo gap, pi-ratings [4],
+rolling form, importance, neutral flag): a **multinomial logistic regression**
+(linear, calibrated) and **gradient-boosted trees** (XGBoost [5], additive trees
+fit to the loss gradient, capturing non-linear interactions). Tree outputs are
+**isotonic-calibrated** [6], then convex-blended with weights minimising the
+**Ranked Probability Score** [7] — the proper scoring rule for ordered W/D/L:
 
-- **Multinomial logistic regression** — a linear, well-calibrated baseline:
-  `P(class) ∝ exp(wᵀx)`.
-- **Gradient-boosted trees (XGBoost)** — an additive ensemble of shallow trees
-  `F(x)=Σ f_k(x)`, each new tree fit to the gradient of the loss; captures
-  non-linear feature interactions the linear model misses.
-
-Tree probabilities are **isotonic-calibrated** (a monotone map fit on a
-validation fold so "p" matches observed frequency), then the two models are
-**convex-blended** with weights chosen to minimise the **Ranked Probability
-Score** (RPS — the proper scoring rule for ordered W/D/L outcomes). The O/U and
-BTTS heads are separate binary models on goal-tempo features, also isotonic.
-
-```
-p_lr  = softmax(W·x)
-p_xgb = isotonic(XGBoost(x))
-p_wdl = normalize(w_lr·p_lr + w_xgb·p_xgb)         # weights minimise hold-out RPS
-```
+$$p_{\text{wdl}}=\mathrm{norm}\!\big(w_{\text{lr}}\,p_{\text{lr}}
+  +w_{\text{xgb}}\,\mathrm{iso}(p_{\text{xgb}})\big),\quad
+  (w)=\arg\min \;\mathrm{RPS}_{\text{holdout}}\tag{6}$$
 
 ### 3.5 Reconciliation as a minimum-KL projection (IPF)
 
-**Theory.** We want the single matrix M whose W/D/L, Over-2.5 and BTTS marginals
-equal the blended headline values, while staying as close as possible to the
-Poisson/Dixon-Coles prior matrix M₀. "As close as possible" in the
-information-geometric sense is the **I-projection** — minimise KL divergence
-`KL(M‖M₀)` subject to the marginal constraints. **Iterative Proportional
-Fitting** (Sinkhorn/IPF) solves it by cyclically rescaling each constrained
-region to its target and renormalising; it converges to the unique
-minimum-KL solution.
+We want the single matrix $M$ matching the blended headline marginals while
+staying closest to the Dixon-Coles prior $M_0$. "Closest" in information geometry
+is the **I-projection** — minimise KL divergence subject to the marginal
+constraints (Csiszár 1975 [8]):
+
+$$M=\arg\min_{M\in\mathcal{C}} \mathrm{KL}(M\,\|\,M_0),\quad
+  \mathcal{C}=\{\text{W/D/L, Over2.5, BTTS marginals fixed}\}\tag{7}$$
+
+**Iterative Proportional Fitting** (Deming-Stephan 1940 [9]; Sinkhorn 1967 [10])
+solves it by cyclically rescaling each constrained region to its target:
 
 ```
-reconcile_matrix(M0, targets):           # targets: W/D/L, Over2.5, BTTS
+reconcile_matrix(M0, targets):
   M ← M0
   repeat until converged:
-     for each constraint set S (e.g. {over}, {under}):
+     for each constraint region S (e.g. {over},{under}):
         M[S] ← M[S] · target_S / mass(M[S])
      M ← M / sum(M)
-  return M                               # all markets now read from one M
+  return M        # scorelines, O/U, handicap, BTTS all read from one M
 ```
-
-Result: scorelines, O/U, handicap and BTTS can never contradict each other.
 
 ### 3.6 Monte-Carlo match simulation (Dixon-Robinson, minute-by-minute)
 
-**Theory.** The closed-form matrix gives the final-score law but no *timeline*
-(comebacks, late goals, in-play conditionals) and assumes a constant rate. We
-simulate the match as an **inhomogeneous Poisson process** over 90 minutes with
-three physically-motivated ingredients:
+The closed-form matrix gives the final-score law but no *timeline*. We simulate
+an **inhomogeneous Poisson process** over 90 minutes (Dixon-Robinson 1998 [11])
+with (i) a fitted per-minute intensity $w(m)$, $\sum_m w(m)=1$; (ii) score-state
+feedback (trailing team ↑, leader →, estimated causally, §3.8); (iii)
+**parameter uncertainty** — each trial draws $\lambda$ from a **Gamma** prior, so
+the marginal count is **negative-binomial**, reproducing the observed
+over-dispersion (§4.2):
 
-1. a fitted per-minute **intensity curve** w(m) (goals rise through each half,
-   surge in closing minutes), `Σ w(m)=1`;
-2. **score-state feedback** (Dixon-Robinson 1998): the trailing team's rate is
-   multiplied up, the leader's down — multipliers *estimated causally* (§3.8);
-3. **parameter uncertainty**: each simulated match draws its own λ from a
-   **Gamma** prior (mean λ, CV set by `sim_lambda_cv`). Mixing Poisson over a
-   Gamma yields a **negative-binomial** count — i.e. this reproduces the
-   observed over-dispersion (§4.2) honestly, widening scenario fans.
+$$\tilde\lambda\sim\mathrm{Gamma}(k,\theta),\quad X\mid\tilde\lambda\sim\mathrm{Pois}(\tilde\lambda)
+  \;\Rightarrow\; X\sim\mathrm{NegBin}\tag{8}$$
 
 ```
 simulate(λ_h, λ_a, N):
-  for each of N trials:
-     λ̃_h, λ̃_a ← Gamma(mean=λ, cv=σ)                 # parameter uncertainty
+  for trial in 1..N:
+     λ̃ ← Gamma(mean=λ, cv=σ)                       # parameter uncertainty
      for minute m = 1..90:
-        s ← state_multiplier(current_lead)            # trailing↑, leader→ (§3.8)
-        g_h ~ Poisson(λ̃_h · w(m) · s_h);  g_a ~ Poisson(λ̃_a · w(m) · s_a)
-        update score
-     record final score, goal minutes
-  return distributions: comeback%, late-goal%, result-flips-vs-HT (volatility), …
+        s ← state_multiplier(current_lead)          # trailing↑, leader→ (§3.8)
+        Δg_h ~ Pois(λ̃_h·w(m)·s_h);  Δg_a ~ Pois(λ̃_a·w(m)·s_a)
+     record final score + goal minutes
+  return comeback%, late-goal%, result-flips-vs-HT (volatility), …
 ```
 
-Validated equal to the matrix on W/D/L, so the headline stays from the matrix;
-the simulator only adds the scenario layer.
+Validated equal to the matrix on W/D/L, so the headline stays from the matrix.
 
 ### 3.7 Bounded priors and Bayesian shrinkage
 
-Seeding, squad-strength and xG-form are **Elo offsets** that shrink with
-evidence. The `n/(n+k)` weight is the Bayesian posterior weight on the data when
-combining a prior with `n` noisy observations (precision-weighted mean): with
-little data the prior dominates; as matches accumulate the observed signal takes
-over. Each offset is clipped so a thin sample can't dominate, and is
-counterfactually graded (§6).
+Seeding, squad-strength and xG-form are **Elo offsets** shrunk by evidence. The
+$n/(n+k)$ weight is the Bayesian posterior weight on $n$ noisy observations
+(precision-weighted mean); clipping bounds a thin sample:
 
-```
-δ = clip(scale · signal, ±cap) · n/(n+k);   effective_elo = base + Σ δ
-```
+$$\delta=\mathrm{clip}\!\big(\text{scale}\cdot\text{signal},\,\pm\text{cap}\big)\cdot\frac{n}{n+k},
+  \qquad \text{eff.\ Elo}=\text{base}+\textstyle\sum\delta\tag{9}$$
 
 ### 3.8 Strength-controlled causal estimation
 
-Some effects are **confounded**: e.g. leading teams *seem* to score more, but
-strong teams both lead and score. To recover the *causal* within-match effect we
-fit a Poisson GLM with the team's own expected rate as a fixed **offset**, so the
-coefficient is identified net of team quality:
+Some effects are **confounded** (strong teams both lead and score). To recover
+the causal within-match effect we fit a Poisson GLM with the team's own expected
+rate as a fixed **offset**, identifying the coefficient net of quality:
 
-```
-goals_in_minute ~ Poisson;   log μ = β·state + offset(log team_xg_per_minute)
-multiplier(state) = exp(β_state)         # net of strength (§4.3)
-```
+$$\log\mu=\beta\cdot\text{state}+\log(\text{team xG/min}),\qquad
+  \text{multiplier}(\text{state})=e^{\beta}\tag{10}$$
 
 ## 4. Experiments and results
 
@@ -406,6 +363,24 @@ the scorecards and keep / disable / re-fit each:
 Not yet built: §2C derived markets (clean-sheet, win-to-nil, odd/even, HT/FT,
 first/next goal) — free from the reconciled matrix/sim, zero accuracy risk.
 
+
+---
+
+## References
+
+1. M. J. Dixon, S. G. Coles (1997). *Modelling Association Football Scores and Inefficiencies in the Football Betting Market.* Journal of the Royal Statistical Society C, 46(2).
+2. M. J. Maher (1982). *Modelling association football scores.* Statistica Neerlandica, 36(3).
+3. A. E. Elo (1978). *The Rating of Chessplayers, Past and Present.* Arco. (logistic rating update)
+4. A. C. Constantinou, N. E. Fenton (2013). *Determining the level of ability of football teams by dynamic ratings (pi-ratings).* Journal of Quantitative Analysis in Sports, 9(1).
+5. T. Chen, C. Guestrin (2016). *XGBoost: A Scalable Tree Boosting System.* KDD.
+6. B. Zadrozny, C. Elkan (2002). *Transforming classifier scores into accurate multiclass probability estimates (isotonic calibration).* KDD.
+7. E. S. Epstein (1969). *A Scoring System for Probability Forecasts of Ranked Categories (RPS).* J. Applied Meteorology, 8(6).
+8. I. Csiszár (1975). *I-divergence geometry of probability distributions and minimization problems.* Annals of Probability, 3(1).
+9. W. E. Deming, F. F. Stephan (1940). *On a least squares adjustment of a sampled frequency table (IPF).* Annals of Mathematical Statistics, 11(4).
+10. R. Sinkhorn (1967). *Diagonal equivalence to matrices with prescribed row and column sums.* American Mathematical Monthly, 74(4).
+11. M. Dixon, M. Robinson (1998). *A birth process model for association football matches.* The Statistician, 47(3).
+12. L. M. Hvattum, H. Arntzen (2010). *Using ELO ratings for match result prediction in association football.* International Journal of Forecasting, 26(3).
+13. StatsBomb Open Data — github.com/statsbomb/open-data (event data; used under StatsBomb's licence, with attribution).
 
 ---
 
