@@ -179,6 +179,9 @@ class Settings(BaseSettings):
     ou_head_weight: float = 0.95
     btts_head_weight: float = 0.9
     ou_total_scale: float = 0.94
+    # blend Dixon-Coles attack/defence lambda into the goal rates (asymmetric
+    # attack-vs-defence matchup; holdout: O/U Brier 0.2512->0.244, MAE 1.48->1.42)
+    goal_dc_weight: float = 0.5
 
     corners_base: float = 9.07
     # adaptive base: blend the prior with the observed tournament mean, n/(n+k).

@@ -256,3 +256,33 @@ live (LiveScore has no passing network). A candidate, NOT yet adopted: a
 **shots-in-box proxy from the LiveScore shotmap**, fit against corners on the
 StatsBomb shot locations — to be tested once enough WC-2026 matches accumulate
 to validate it (measure-first; don't ship unvalidated).
+
+
+## 10. Attack/defence λ (forward-vs-defender matchup) — fitted & adopted
+
+A user hypothesis ("tiền đạo vs hậu vệ") tested scientifically: the goal λ used
+only a single Elo gap (`exp(a ± b·elo_diff)`), which can't tell a great-attack/
+weak-defence team from a balanced one of equal Elo. The Dixon-Coles att/def
+ratings (per-team attack & defence, trained on 49k internationals) express that
+asymmetry but had weight 0 in the W/D/L blend (they lose to Elo there, RPS 0.177
+vs 0.160). We tested whether they help the GOAL-distribution targets (holdout
+2,492 recent intl matches, `ml/attdef_lambda_proto.py`):
+
+| λ source | O/U Brier | O/U bias | total MAE | score log-loss |
+|---|---|---|---|---|
+| Elo-gap (old) | 0.2512 | +0.084 | 1.477 | 2.906 |
+| att/def (DC) | 0.2522 | −0.023 | 1.428 | 2.966 |
+| **blend 50/50** | **0.2440** | +0.036 | **1.421** | **2.887** |
+
+**Adopted:** goal λ is now `0.5·Elo-gap + 0.5·att/def` (`goal_dc_weight=0.5`),
+feeding the score matrix → O/U, Asian handicap, scorelines, corners, sim. The
+att/def half is intrinsically better-calibrated (bias −0.02 vs +0.08) and the
+blend wins all three goal metrics on holdout. W/D/L still comes from the Elo
+ensemble (att/def loses there). The 0.94 totals-scale stays optimal for the
+blend (re-checked: bias −0.003). All 48 WC-2026 teams have att/def coverage.
+
+Player-level ideas (individual cohesion, "being found out", solo breakthroughs)
+were triaged out: not validatable historically (no labelled dataset) and prior
+tests show team strength dominates — so they remain qualitative chatbot context,
+not validated predictors. The attack/defence *decomposition* is the validatable
+core of "forward vs defender", and it's now in the model.

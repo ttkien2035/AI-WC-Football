@@ -8,6 +8,8 @@ tournament.
 """
 import json
 import logging
+import re
+import unicodedata
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -166,10 +168,62 @@ def predict_wdl(home_tla: str, away_tla: str, finished: tuple = (),
     return {"home": float(p[0]), "draw": float(p[1]), "away": float(p[2])}
 
 
+def _norm_name(s: str) -> str:
+    s = unicodedata.normalize("NFKD", (s or "").replace("đ", "d").replace("Đ", "D"))
+    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    return re.sub(r"[^a-z0-9]", "", s)
+
+
+# our TEAMS names vs the Dixon-Coles training names (martj42) that differ after
+# normalization — kept tiny; everything else matches by normalized name.
+_DC_NAME_FIX = {"czechia": "czechrepublic", "bosniaherzegovina": "bosniaandherzegovina"}
+
+
+@lru_cache(maxsize=1)
+def _dc_attdef() -> dict | None:
+    """Dixon-Coles attack/defence ratings by normalized team name (the
+    asymmetric 'attack-line vs defence-line' strength the single Elo gap can't
+    express). Holdout-validated to improve the goal distribution when BLENDED
+    with the Elo-gap lambda — see docs/METHODOLOGY §10."""
+    try:
+        d = json.load(open(MODELS_DIR / "dc_params.json"))
+        return {"att": {_norm_name(k): v for k, v in d["att"].items()},
+                "def": {_norm_name(k): v for k, v in d["def"].items()},
+                "c": float(d["c"]), "home_adv": float(d["home_adv"])}
+    except Exception:
+        return None
+
+
+def _dc_key(tla: str) -> str | None:
+    from ..static_data import TEAMS
+    n = _norm_name(TEAMS.get(tla, {}).get("name", tla))
+    return _DC_NAME_FIX.get(n, n)
+
+
+def dc_lambdas(home_tla: str, away_tla: str) -> tuple[float, float] | None:
+    """(lam_h, lam_a) from Dixon-Coles att/def: lam = exp(c [+home_adv] +
+    att_self + def_opp). None if either team lacks a rating."""
+    dc = _dc_attdef()
+    if not dc:
+        return None
+    kh, ka = _dc_key(home_tla), _dc_key(away_tla)
+    att, dfn = dc["att"], dc["def"]
+    if kh not in att or ka not in att:
+        return None
+    adv = dc["home_adv"] if home_tla in HOST_TLAS else 0.0
+    lh = float(np.exp(dc["c"] + adv + att[kh] + dfn[ka]))
+    la = float(np.exp(dc["c"] + att[ka] + dfn[kh]))
+    return max(lh, 0.15), max(la, 0.15)
+
+
 def goal_lambdas(home_tla: str, away_tla: str, finished: tuple = (),
                  elo_adjust: tuple = (0.0, 0.0)) -> tuple[float, float] | None:
-    """Fitted Poisson rates lambda = exp(a ± b·elo_diff/100) on the training
-    Elo scale (replaces the hand-tuned elo_sup_scale heuristic)."""
+    """Goal rates for the score matrix. Base = fitted Poisson lambda =
+    exp(a ± b·elo_diff/100); BLENDED with the Dixon-Coles attack/defence
+    lambda (captures asymmetric attack-vs-defence matchups — holdout-validated
+    to cut O/U Brier + total-goals MAE + scoreline log-loss). Blend weight is
+    settings.goal_dc_weight; falls back to Elo-gap alone if no DC rating."""
+    from ..config import settings
     a = _artifacts()
     if a is None:
         return None
@@ -182,6 +236,12 @@ def goal_lambdas(home_tla: str, away_tla: str, finished: tuple = (),
     r = a["rates"]
     lh = float(np.exp(r["a"] + r["b"] * ed / 100.0))
     la = float(np.exp(r["a"] - r["b"] * ed / 100.0))
+    w = settings.goal_dc_weight
+    if w > 0:
+        dc = dc_lambdas(home_tla, away_tla)
+        if dc:
+            lh = (1 - w) * lh + w * dc[0]
+            la = (1 - w) * la + w * dc[1]
     return max(lh, 0.15), max(la, 0.15)
 
 
