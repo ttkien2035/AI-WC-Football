@@ -1,0 +1,130 @@
+"""Generate the experiment figures embedded in docs/METHODOLOGY.md.
+All plots are produced from the real fit artifacts / eval data. Headless (Agg).
+Run:  python -m ml.make_figures
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[1]
+MODELS = ROOT / "app" / "data" / "models"
+FIG = ROOT.parent / "docs" / "figures"
+FIG.mkdir(parents=True, exist_ok=True)
+plt.rcParams.update({"figure.dpi": 110, "font.size": 10, "axes.grid": True,
+                     "grid.alpha": 0.3, "axes.axisbelow": True})
+EM, SK = "#10b981", "#0ea5e9"      # emerald / sky
+
+
+def fig_corner_determinants():
+    c = json.load(open(MODELS / "corners_fit.json"))["corr"]
+    items = sorted(c.items(), key=lambda kv: kv[1])
+    k, v = zip(*items)
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.barh(k, v, color=[EM if x >= 0 else "#ef4444" for x in v])
+    ax.axvline(0, color="#334155", lw=0.8)
+    ax.set_xlabel("Pearson r with corners-for")
+    ax.set_title("Fig 1. Corner determinants (628 intl team-matches)")
+    for i, x in enumerate(v):
+        ax.text(x + (0.01 if x >= 0 else -0.01), i, f"{x:+.2f}",
+                va="center", ha="left" if x >= 0 else "right", fontsize=8)
+    fig.tight_layout(); fig.savefig(FIG / "corner_determinants.png"); plt.close(fig)
+
+
+def fig_total_dispersion():
+    d = pd.read_csv(MODELS / "eval_features.csv"); tot = (d.gh + d.ga).values
+    mu = tot.mean()
+    from scipy.stats import poisson
+    ks = np.arange(0, 8)
+    emp = [np.mean(tot == k) for k in ks[:-1]] + [np.mean(tot >= 7)]
+    poi = [poisson.pmf(k, mu) for k in ks[:-1]] + [1 - poisson.cdf(6, mu)]
+    fig, ax = plt.subplots(figsize=(6, 3.2))
+    x = np.arange(len(ks)); w = 0.4
+    ax.bar(x - w / 2, emp, w, label="empirical", color=EM)
+    ax.bar(x + w / 2, poi, w, label=f"Poisson(μ={mu:.2f})", color=SK)
+    ax.set_xticks(x); ax.set_xticklabels([str(k) for k in ks[:-1]] + ["7+"])
+    ax.set_xlabel("total goals"); ax.set_ylabel("P")
+    ax.set_title(f"Fig 2. Total-goals are over-dispersed (Var/Mean={tot.var()/mu:.2f})")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(FIG / "total_dispersion.png"); plt.close(fig)
+
+
+def fig_ou_reliability():
+    import sys; sys.path.insert(0, str(ROOT))
+    from app.engine import match_model as MM
+    d = pd.read_csv(MODELS / "eval_features.csv")
+    r = json.load(open(MODELS / "goal_rates.json")); a, b = r["a"], r["b"]
+    ed = d.elo_diff.values
+    p = np.array([MM.prob_at_line(MM.score_matrix(np.exp(a + b * e / 100),
+                  np.exp(a - b * e / 100), rho=-0.06), 2.5)["over"] for e in ed])
+    act = (d.gh + d.ga > 2.5).astype(float).values
+    s = pd.DataFrame({"p": p, "a": act}); s["bin"] = pd.qcut(s.p, 10, duplicates="drop")
+    g = s.groupby("bin", observed=True).agg(pred=("p", "mean"), act=("a", "mean"))
+    fig, ax = plt.subplots(figsize=(4.6, 4.4))
+    ax.plot([0.3, 0.85], [0.3, 0.85], "--", color="#334155", label="perfect")
+    ax.plot(g.pred, g.act, "o-", color="#ef4444", label="Elo-gap matrix (raw)")
+    ax.set_xlabel("predicted P(Over 2.5)"); ax.set_ylabel("observed frequency")
+    ax.set_title("Fig 3. O/U reliability — raw matrix\nover-predicts (motivates calibration)")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(FIG / "ou_reliability.png"); plt.close(fig)
+
+
+def fig_sim_state():
+    d = json.load(open(MODELS / "sim_fit.json"))
+    order = ["lead2", "lead1", "trail1", "trail2"]
+    naive = [d["naive_mult_confounded"][k] for k in order]
+    ctrl = [d["controlled_mult"][k] for k in order]
+    fig, ax = plt.subplots(figsize=(6, 3.2))
+    x = np.arange(len(order)); w = 0.38
+    ax.bar(x - w / 2, naive, w, label="naive (confounded)", color="#94a3b8")
+    ax.bar(x + w / 2, ctrl, w, label="strength-controlled", color=EM)
+    ax.axhline(1.0, color="#334155", lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(["lead +2", "lead +1", "trail -1", "trail -2"])
+    ax.set_ylabel("scoring-rate × vs level")
+    ax.set_title("Fig 4. Score-state effect: confound vs causal")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(FIG / "sim_state.png"); plt.close(fig)
+
+
+def fig_attdef():       # validated results from §10
+    metrics = ["O/U Brier", "total MAE", "score log-loss"]
+    elo = [0.2512, 1.477, 2.906]; dc = [0.2522, 1.428, 2.966]; bl = [0.2440, 1.421, 2.887]
+    norm = lambda vals: [v / e for v, e in zip(vals, elo)]   # relative to elo-gap=1
+    fig, ax = plt.subplots(figsize=(6, 3.2))
+    x = np.arange(3); w = 0.26
+    ax.bar(x - w, norm(elo), w, label="Elo-gap", color="#94a3b8")
+    ax.bar(x, norm(dc), w, label="att/def (DC)", color=SK)
+    ax.bar(x + w, norm(bl), w, label="blend 50/50", color=EM)
+    ax.axhline(1.0, color="#334155", lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(metrics)
+    ax.set_ylabel("relative to Elo-gap (lower=better)"); ax.set_ylim(0.95, 1.02)
+    ax.set_title("Fig 5. Attack/defence λ blend wins all goal metrics")
+    ax.legend()
+    fig.tight_layout(); fig.savefig(FIG / "attdef.png"); plt.close(fig)
+
+
+def fig_xgform():       # §11 results
+    fig, ax = plt.subplots(figsize=(4.6, 3.2))
+    ax.bar(["goal-form", "xG-form"], [0.0969, 0.1132], color=["#94a3b8", EM])
+    ax.set_ylabel("solo R² predicting next margin")
+    ax.set_title("Fig 6. xG-form beats goal-form (+17%)")
+    for i, v in enumerate([0.0969, 0.1132]):
+        ax.text(i, v + 0.001, f"{v:.3f}", ha="center", fontsize=9)
+    fig.tight_layout(); fig.savefig(FIG / "xgform.png"); plt.close(fig)
+
+
+def main():
+    for f in (fig_corner_determinants, fig_total_dispersion, fig_ou_reliability,
+              fig_sim_state, fig_attdef, fig_xgform):
+        f(); print("wrote", f.__name__)
+    print("figures ->", FIG)
+
+
+if __name__ == "__main__":
+    main()

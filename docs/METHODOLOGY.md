@@ -1,337 +1,311 @@
-# Prediction Methodology
+# A Measure-First Probabilistic Engine for Football Prediction
 
 *AI World Cup 2026 Predictor — a research testbed for football-prediction
-algorithms (academic, not a betting product).*
+algorithms (academic; not a betting product).*
 
-This document records **how every prediction factor is derived** and, crucially,
-**which are fitted from data versus which remain bounded literature priors**.
-The guiding rule is: *don't assume a coefficient if it can be measured; if it
+## Abstract
+
+We describe the prediction methodology of an open World-Cup-2026 forecasting
+system. All match targets — match result (1X2), exact score, Asian handicap and
+Over/Under (goals and corners) — are read from **one reconciled bivariate goal
+distribution**, so they are mutually consistent by construction. Team strength
+is an ML ensemble (RPS 0.1605 on a 1,313-match hold-out); on top of it sit a set
+of **bounded factor priors** whose *direction* is taken from literature but whose
+*magnitude* is either fitted from data or held small and audited live. We adopt
+a single discipline — **measure first: a factor is wired in only if it beats a
+strength baseline on a hold-out; otherwise it is shrunk, dropped, or recorded as
+a null result.** Following it we (i) fitted corner coefficients from 314–5,232
+StatsBomb matches, (ii) calibrated Over/Under, (iii) estimated the causal
+score-state effect with a strength-controlled GLM, (iv) blended Dixon-Coles
+attack/defence ratings into the goal rate, and (v) added an xG-based
+in-tournament rating update — while explicitly *rejecting* rest/fatigue, graph
+embeddings, tactical counter-matchups and player-style features that did not
+beat the baseline. Every coefficient lives in a JSON artifact read at serving
+time and is graded by live scorecards.
+
+**Guiding rule.** *Don't assume a coefficient if it can be measured; if it
 can't be measured cleanly, keep it small, bounded, and audited live.*
 
 ---
 
-## 1. Pipeline architecture
+## 1. Introduction
 
-Everything converges on one quantity — **λ (expected goals per team)** — from
-which all goal-derived targets are read off a single distribution so they can
-never contradict each other:
+Football outcomes are strength-dominated and high-variance, which sets a low
+ceiling on predictability and a high bar for any new feature. The system is
+built so that (a) every user-facing market derives from a single coherent
+distribution, and (b) every modelling choice is testable and reversible. This
+document records each factor, the experiment behind it, and — importantly —
+which appealing ideas were *refuted* by the data.
+
+---
+
+## 2. Data
+
+| Source | Role | Notes |
+|---|---|---|
+| football-data.org v4 | fixtures, standings, results | free tier; no venue/minute |
+| LiveScore (unofficial) | live minute, score, incidents, stats, shot map | possession, shots, crosses, corners |
+| **StatsBomb open data** | event-level (passes, shots, xG, pressures) | basis for all corner/style/sim/att-def fits |
+| eloratings.net | World Football Elo | live + static snapshot |
+| ClubElo | club strength | squad-strength prior |
+| martj42/international_results | 49k internationals | ensemble + Dixon-Coles training |
+| football-data.co.uk | 9k club matches (corners/shots/odds) | corners dispersion, ensemble |
+| The Odds API | bookmaker h2h/totals/spreads | market comparison / value |
+
+The StatsBomb **men's** event corpus used for fits spans WC 2018/2022,
+Euro 2020/2024, Copa América 2024, AFCON 2023 and full club seasons
+(PL/La Liga/Ligue 1/Serie A 2015-16, Bundesliga, La Liga 2004-21, …) —
+**5,232 team-match rows** (628 international, 4,604 club).
+
+---
+
+## 3. Methodology and algorithms
+
+### 3.1 Pipeline
+
+Everything converges on a per-team expected-goals rate **λ**, from which one
+score matrix is built and reconciled to the headline marginals:
 
 ```
  Elo (live) ─┐
- Seeding/squad prior (±Elo, decays as a team plays) ─┤
- Key absences (−Elo) ─┤
- Style → W/D/L supremacy (±Elo, fitted-bounded) ─┴─→ effective Elo ─→ λ (fitted Poisson rates)
-                                                                        │
- ML ensemble (XGB+LR) → W/D/L ──────────────────────────────────────────┤  meta-calibrated blend
- Market odds → implied probs ────────────────────────────────────────────┤
-                                                                        ▼
- Style / Context / Venue → λ multipliers (bounded) ────────────────→  adjusted λ
-                                                                        ▼
- O/U 2.5 + BTTS trained heads  ──→  reconcile_matrix (IPF)
-                                                                        ▼
-        ONE score matrix → W/D/L · scorelines · O/U · BTTS · Asian lines · corners
-                                                                        ▼
-        Dixon-Robinson minute simulation → scenarios (comeback, late goal, volatility)
+ Seeding / squad prior  (±Elo, decays as a team plays) ─┤
+ Key absences           (−Elo) ─┤
+ Style → W/D/L supremacy (±Elo, fitted-bounded) ─┤
+ xG-form nudge          (±Elo, in-tournament) ─┴─→ effective Elo ─┐
+                                                                  ├─→ λ
+ Dixon-Coles attack/defence ──────────────────────────────────────┘  (blend)
+        │
+ ML ensemble (XGB+LR) → W/D/L ─┐
+ Market odds → implied probs ──┼─ meta-calibrated blend ─→ headline W/D/L, O/U
+ Style/Context/Venue → λ × (bounded) ─┘
+        ▼
+ reconcile_matrix (IPF)  →  ONE score matrix
+        ▼
+ W/D/L · scorelines · Asian O/U (goals & corners) · Asian handicap · BTTS
+        ▼
+ Dixon-Robinson minute simulation → scenarios (comeback, late goal, volatility)
 ```
 
 The headline always comes from the reconciled matrix; the minute simulation is
-additive (scenarios only), validated separately.
+additive (scenarios only) and validated separately.
+
+### 3.2 Algorithm 1 — Consistency by iterative proportional fitting
+
+```
+reconcile_matrix(M, p_wdl, p_over, p_btts):
+  repeat until converged:
+     for each partition (home/draw/away), (over/under 2.5), (btts/not):
+        scale matrix cells in each region so its mass = the target marginal
+     renormalise M
+  return M            # W/D/L, O/U, BTTS, scorelines now read from one M
+```
+
+IPF tilts the Poisson/Dixon-Coles matrix the minimal (KL) amount needed to match
+the blended headline marginals, so no two displayed markets can contradict.
+
+### 3.3 Algorithm 2 — Goal rate (Elo gap ⊕ attack/defence)
+
+```
+λ_elo_h = exp(a + b·Δelo/100),   λ_elo_a = exp(a − b·Δelo/100)
+λ_dc_h  = exp(c + adv + att_h + def_a),  λ_dc_a = exp(c + att_a + def_h)
+λ = (1−w)·λ_elo + w·λ_dc          # w = goal_dc_weight = 0.5
+M = DixonColes(λ_h, λ_a, ρ);  then ×ou_total_scale for O/U lines
+```
+
+The Elo gap is symmetric; the Dixon-Coles term injects the **asymmetric
+attack-vs-defence** structure a single rating cannot express (§4.4).
+
+### 3.4 Algorithm 3 — Bounded, decaying priors
+
+Seeding, squad-strength and xG-form are Elo offsets that shrink with confidence:
+
+```
+δ = clip(scale · signal, ±cap) · n/(n+k)        # n = matches played
+effective_elo = base_elo + Σ δ                  # all priors are additive in Elo
+```
+
+Direction from literature/theory; `scale`/`cap` bounded; `n/(n+k)` makes a thin
+sample unable to dominate. Each δ is counterfactually graded by the scorecard.
+
+### 3.5 Algorithm 4 — Strength-controlled causal estimation
+
+To estimate a *within-match* effect (e.g. the score-state response) free of the
+selection confound that strong teams both lead and score, we fit a Poisson GLM
+with the team's own expected rate as an **offset**:
+
+```
+goals_minute ~ Poisson;  log μ = β·state + offset(log team_xg_per_min)
+multiplier(state) = exp(β_state)      # causal, net of team quality
+```
 
 ---
 
-## 2. Factor classification
+## 4. Experiments and results
 
-| Model / factor | Status | Source | Live validation |
-|---|---|---|---|
-| Goal λ, W/D/L, scorelines | **ML-fitted** | 49k internationals + 9k club matches | RPS 0.1605 holdout (vs 0.1701 heuristic) |
-| O/U 2.5, BTTS | **ML-fitted** trained heads + meta-blend | same | Brier holdout |
-| Corners: crosses→corners | **Data-fitted** | StatsBomb, 314 intl matches | corners scorecard |
-| Corners: base level | **Data-fitted** (9.07) + adapts to WC-2026 | StatsBomb + in-tournament | corners scorecard |
-| Style → total goals | **Measured & shrunk** | StatsBomb, 314 matches | factor scorecard |
-| Style → W/D/L supremacy | **Measured & shrunk** | StatsBomb, 314 matches | factor scorecard |
-| Sim score-state response | **Data-fitted** (strength-controlled) | StatsBomb minute events | sim-timing scorecard |
-| Seeding / squad prior | Tiered + decaying shrink | FIFA ranks + ClubElo | factor scorecard |
-| Venue altitude / heat | **Literature prior** (bounded) | no clean fit dataset | factor scorecard |
-| Context (dead rubber, biscotto, knockout) | **Situational prior** (bounded) | rare, hard to label | factor scorecard |
-| Manager → corners | **Dropped** | data-contradicted | — |
+All fits run offline (`backend/ml/*.py`) and write JSON artifacts read at serving
+time, so re-running a script updates production with no code change.
 
----
+### 4.1 Corner determinants
 
-## 3. Fitted coefficients (with the data behind them)
+![Fig 1](figures/corner_determinants.png)
 
-All fits run on **StatsBomb open event data** for 6 modern men's national-team
-tournaments — **WC 2022, WC 2018, Euro 2024, Euro 2020, Copa América 2024,
-AFCON 2023** (314 matches, 628 team-match rows). Scripts:
-`backend/ml/statsbomb_fit.py`, `statsbomb_style_fit.py`, `statsbomb_sim_fit.py`.
-Outputs: `backend/app/data/models/{corners,style,sim}_fit.json` — read by the
-serving engine at runtime, so re-running a fit auto-updates production.
+On 628 international team-matches, corners-for correlate with shots (r=0.58),
+crosses (0.53), possession (0.51), xG (0.27) and — counter-intuitively —
+**negatively with pressing** (−0.18). A Poisson GLM `corners ~ crosses +
+possession + shots` is significant on all terms (p<0.01). **Fitted:**
+crosses→corner ratio **0.389** (was a hand-set 0.28); base **9.07** corners/game
+(was a club-leaning 9.67), then adaptively shrunk toward the observed WC-2026
+mean. The old `high_press` and manager corner bumps were **dropped** (pressing
+is negative). On the enriched 5,232-match set the intl coefficients are
+confirmed (club runs higher: 0.429 / 10.06); **box entries** (passes into the
+box) are the strongest corner signal (r=0.67) but are event-level and not
+available live, so they inform — not serve — the model.
 
-### 3.1 Corners (`corners_fit.json`)
+### 4.2 Goal distribution and Over/Under calibration
 
-Univariate correlation with corners-for (628 team-matches):
+![Fig 2](figures/total_dispersion.png)
+![Fig 3](figures/ou_reliability.png)
 
-| Feature | r |
-|---|---|
-| shots | +0.579 |
-| crosses | +0.528 |
-| possession | +0.507 |
-| xG | +0.269 |
-| **pressures** | **−0.175** |
+Total goals are **over-dispersed** vs a single Poisson (Var/Mean≈1.29, fatter
+0–1 and 7+ tails). The raw Elo-gap matrix therefore **over-predicts Over** by
+~+8.5pp uniformly across deciles (Fig 3). The trained O/U head is, by contrast,
+isotonic-calibrated (hold-out bias +0.4pp). **Adopted (two levers):** lean the
+O/U/BTTS blend on the head (`ou_head_weight=0.95`); scale the Asian-line matrix
+total by `ou_total_scale=0.94` so all lines calibrate (main lines within ±0.5pp,
+re-confirmed after the att/def blend). Asian handicap is read from the same
+reconciled matrix (margin calibration within ±3pp on 8k hold-out).
 
-Poisson GLM `corners ~ crosses + possession + shots` — all p < 0.01.
+### 4.3 Score-state simulation (a confounding lesson)
 
-**Changes made:**
-- crosses→corner ratio **0.28 (hand-set) → 0.389 (fitted)**.
-- base corners **9.67 (club-leaning) → 9.07 (intl mean)**, then adaptively
-  shrunk toward observed WC-2026 corners (`n/(n+20)`).
-- **Dropped** the `high_press +0.3` earn bump and the manager corner bumps —
-  pressing correlates *negatively* (−0.18), contradicting the assumption.
-- Kept possession/wing-play (data-supported, +0.51/+0.53).
+![Fig 4](figures/sim_state.png)
 
-### 3.2 Style factors (`style_fit.json`)
+Naively, leading teams *appear* to score more (×1.19 at +1) — but that is
+selection (strong teams lead). The strength-controlled GLM (Alg. 4) shows the
+textbook "leading team eases off ×0.88" is **not supported** (lead +1 ×1.15,
+p=0.18), while a **trailing team genuinely pushes** (−1 ×1.35, −2 ×1.47, p<0.01).
+The minute simulator now uses the fitted table; the leading side is capped ≤1.0
+(residual momentum confound), the trailing push adopted where significant.
 
-Tested whether playing style moves outcomes **beyond what shot volume / Elo
-already capture** (314 matches):
+### 4.4 Attack/defence λ — the forward-vs-defender matchup
 
-- **Total goals**: controlling for shots, possession-balance (p=0.29) and
-  pressing (p=0.38) are **both insignificant** — style adds ~nothing to totals
-  beyond shots (which λ already encodes).
-- **Possession → win**: r = +0.05 (p=0.37). Teams dominating possession win
-  50% vs 37% when ceding it — a weak, noisy edge.
+![Fig 5](figures/attdef.png)
 
-**Changes made (shrink toward measured effect, don't disable — keep a small
-literature prior, audit live):**
-- `style_total_max` **0.06 → 0.03**.
-- style→W/D/L supremacy cap **±18 → ±10 Elo**.
+Hypothesis: the single Elo gap can't tell a great-attack/weak-defence team from
+a balanced one. The Dixon-Coles att/def ratings express that asymmetry (they
+lose to Elo for 1X2, so weight 0 there) — but do they help the *goal* targets?
+Hold-out (2,492 recent intl matches):
 
-### 3.3 Simulation score-state (`sim_fit.json`) — a methodological lesson
+| λ source | O/U Brier | O/U bias | total MAE | score log-loss |
+|---|---|---|---|---|
+| Elo-gap | 0.2512 | +0.084 | 1.477 | 2.906 |
+| att/def (DC) | 0.2522 | −0.023 | 1.428 | 2.966 |
+| **blend 50/50** | **0.2440** | +0.036 | **1.421** | **2.887** |
 
-The naive rate-by-state is **confounded**: strong teams both lead *and* keep
-scoring, so leading teams *look* like they score more (×1.19 raw) — that is
-selection, not the causal "ease-off". We isolate the causal effect with a
-**strength-controlled Poisson GLM** (offset = team's match xG per minute):
+The blend wins all three goal metrics. **Adopted:** `λ = 0.5·Elo + 0.5·att/def`
+(48/48 WC teams covered); 1X2 stays the Elo ensemble.
 
-| State | Naive (confounded) | **Controlled (causal)** | p |
-|---|---|---|---|
-| Leading +1 | ×1.19 | ×1.15 | 0.18 (n.s.) |
-| Leading +2 | ×1.81 | ×1.44 | 0.003 |
-| **Trailing −1** | ×1.19 | **×1.35** | 0.003 |
-| **Trailing −2** | ×1.05 | **×1.47** | 0.014 |
+### 4.5 In-tournament xG-form
 
-**Findings:** the textbook "leading team eases off ×0.88" is **not supported**
-(1-goal lead n.s.); a trailing team **genuinely pushes and scores more** than
-its own baseline (+0.35 / +0.47, significant).
+![Fig 6](figures/xgform.png)
 
-**Changes made:** replaced the symmetric hand-set `sim_state_effect=0.12` with
-the fitted table; the **leading** side is capped at ≤1.0 (its positive estimate
-is residual momentum confound — a team 2-up is having an exceptional game beyond
-its season xG), the **trailing** push is adopted where significant.
+Rolling **xG-form predicts the next result better than goals-form** (3,742 obs:
+solo R² 0.113 vs 0.097, +17%; joint coef 0.61 vs 0.20). xG is the less-noisy
+strength signal. **Adopted** as a bounded in-tournament Elo nudge: a team
+out-performing its scoreline on xG (unlucky) is rated up, an over-performer down
+(±25 Elo, decaying n/(n+2)), feeding every goal target and scorecard-audited.
 
-> This is the difference between *measuring a number* and *measuring it
-> scientifically*: a raw conditional rate can be worse than no adjustment if it
-> encodes a confound.
+### 4.6 Style factors (shrunk to measured effect)
+
+On 314 matches, controlling for shots, neither possession-balance (p=0.29) nor
+pressing (p=0.38) adds to total goals; possession dominance barely predicts wins
+(r=0.05). The style λ-multiplier was halved (`style_total_max` 0.06→0.03) and the
+style→W/D/L supremacy cap cut (±18→±10 Elo) — kept small, audited live.
 
 ---
 
-## 4. What is NOT fitted, and why (honest limitations)
+## 5. Negative results (tested, rejected)
 
-- **Venue altitude / heat** — no clean dataset in hand (WC 2022 was single-venue
-  Qatar; altitude needs cross-venue data with goal counts). Kept as a bounded
-  literature-direction prior (altitude → more goals, open-roof heat → fewer),
-  validated live by the factor scorecard. A future fit would source club-league
-  matches at altitude (Denver / Mexico City / La Paz).
-- **Context** (dead rubber, biscotto, knockout caution) — situational and rare;
-  no large labelled historical set. Bounded, env-tunable, scorecard-audited.
-- **O/U / BTTS mechanism features** — possession/crossing are not in the 49k+9k
-  training set (only in the 314 StatsBomb matches, too few to beat the baseline),
-  so the heads stay strength/form-based. Style enters O/U through the (now
-  shrunk) λ factor instead.
+A research record is incomplete without the "no"s. Each was measured, not
+assumed:
+
+| Hypothesis | Test | Verdict |
+|---|---|---|
+| Graph / passing-network style embedding | leave-one-tournament-out CV | RPS 0.2376→0.2381 (worse) — no gain beyond strength |
+| Tactical counter-matchup amplifies corners | wide-attack × opp-concede interaction | coef −0.0037 (sub-additive), not amplifying |
+| Rest / fixture congestion → goals/result | 1,820 matches, strength-controlled | p=0.15 / 0.86 — no effect |
+| shots-in-box (shotmap) proxy for box entries | 5,232-match GLM | +AIC 22 vs box-entry's 817 — negligible |
+| Style/tactics → 1X2 beyond strength | §4.6 | weak, shrunk not added |
+| Player cohesion / "found out" / solo breakthrough | — | not validatable (no labels); variance, not signal |
+
+The only genuinely useful graph — the team-result network — is already exploited
+by Elo/pi-rating propagation.
+
+---
+
+## 6. Self-correction loop
+
+- **Pre-match snapshots** store, before kickoff, the prediction *and* per-factor
+  counterfactuals ("the O/U / W-D-L *without* factor X").
+- **Factor scorecard** grades each bounded factor with/without on the actual
+  result (Brier for O/U factors, RPS for Elo factors) → helping / hurting /
+  neutral. Hurting factors are disabled by an env flag, no code change.
+- **Corners** and **sim-timing** scorecards validate corner O/U and scenario
+  probabilities (late goal, comeback, result-flips-vs-HT) against outcomes.
+- **Adaptive corners base** + **online Elo** + **nightly retrain** keep the model
+  current; fitted JSON artifacts make re-fits hot-swappable.
+
+---
+
+## 7. Limitations
+
+- WC-2026 lacks event-level data (LiveScore has no passing network), so
+  event-derived features (box entries) inform but cannot serve live.
+- Venue altitude/heat and situational context (dead rubber, biscotto) lack a
+  clean labelled dataset → kept as bounded literature priors, audited live.
+- Outcome predictability is intrinsically capped by variance; gains are modest
+  by nature, which is why every claim is hold-out-validated.
 
 We deliberately **do not fabricate** coefficients where data can't support them.
 
 ---
 
-## 5. Self-correction loop
-
-Every bounded factor is graded on real results, continuously:
-
-- **Pre-match snapshot** stores, before kickoff, the prediction *and* a
-  per-factor counterfactual ("what would the O/U / W-D-L be without factor X").
-- **Factor scorecard** (admin Pipeline) compares with/without on the actual
-  result (Brier for O/U factors, RPS for W/D/L factors) → verdict
-  helping / hurting / neutral. A factor that hurts can be disabled by an env
-  flag with no code change.
-- **Corners scorecard** + **sim-timing scorecard** validate corner O/U and the
-  simulation's scenario probabilities (late goal, comeback, result-flips-vs-HT)
-  against actual minute-by-minute outcomes.
-- **Adaptive corners base** shrinks the prior toward observed WC-2026 corners as
-  matches accumulate (conservative, so a few cagey openers can't skew it).
-- Online Elo updates after every match; ML ensemble retrains nightly.
-
-Fitted coefficients live in JSON artifacts read at serving time, so re-running
-the fit scripts after the tournament updates production with no code change.
-
----
-
-## 6. Reproducing the fits
+## 8. Reproducibility
 
 ```bash
 cd backend
-python -m ml.statsbomb_fit        # corners: download events, correlations, Poisson fit
-python -m ml.statsbomb_style_fit  # style → totals / results effect sizes
-python -m ml.statsbomb_sim_fit    # strength-controlled score-state multipliers
-python -m ml.train                # WDL + O/U + BTTS ensemble (49k+9k matches)
-python -m ml.corners              # club-data corners byproducts (NB dispersion)
-python -m ml.squad_strength       # squad-strength prior (Wikipedia squads × ClubElo)
+python -m ml.train                # WDL + O/U + BTTS ensemble (49k+9k)
+python -m ml.statsbomb_dataset    # enriched 5,232-match event dataset
+python -m ml.statsbomb_fit        # corner determinants + crosses→corner
+python -m ml.corner_tactics_fit   # B2/B3 tactical corner + counter-matchup
+python -m ml.statsbomb_style_fit  # style → totals / results
+python -m ml.statsbomb_sim_fit    # strength-controlled score-state
+python -m ml.attdef_lambda_proto  # attack/defence λ vs Elo-gap
+python -m ml.xgform_proto         # xG-form vs goal-form
+python -m ml.fatigue_proto        # rest/fatigue (null)
+python -m ml.squad_strength       # squad prior (Wikipedia × ClubElo)
+python -m ml.make_figures         # regenerate the figures in this paper
 ```
 
-Event JSONs are cached under `backend/ml/data/statsbomb/`; re-runs are instant.
-StatsBomb open data is used under their license — attribution: StatsBomb.
+Artifacts: `backend/app/data/models/*_fit.json`. StatsBomb data used under their
+licence — attribution: StatsBomb. All predictions are statistical estimates for
+research/reference — not betting advice.
 
 ---
 
-## 7. Data sources
+## 9. TODO — validation pass after group-stage round 1
 
-- **football-data.org v4** — fixtures, standings, results (no venue/minute, free tier).
-- **LiveScore** (unofficial JSON) — live minute, score, incidents, statistics
-  (possession, shots, crosses, corners), shot map.
-- **StatsBomb open data** — event-level data for the 6 tournaments above; the
-  basis for all corner/style/simulation fits.
-- **eloratings.net** — World Football Elo.
-- **ClubElo** (api.clubelo.com) — club strength for the squad prior.
-- **martj42/international_results** (49k matches) + **football-data.co.uk**
-  (9k club matches) — ML ensemble training.
-- **The Odds API** — bookmaker odds for market comparison / value.
+Every bounded factor was adopted with a hold-out-validated *direction* but is
+graded LIVE. **After matchday 1 of all 12 groups** (~24 real matches), re-read
+the scorecards and keep / disable / re-fit each:
 
-All predictions are statistical estimates for research and reference — not
-betting advice.
+- [ ] Factor scorecard verdicts: `style`, `context`, `venue`, `prior`,
+      `style_sup`, `xg_form` → disable any "hurting" (n≥~10) via its env flag.
+- [ ] Corners scorecard + adaptive base (9.07 → observed).
+- [ ] sim-timing scorecard (ht_flip / late-goal / comeback / clean-sheet).
+- [ ] meta-weights (W/D/L blend; active ≥8 finished).
+- [ ] O/U + handicap calibration on round-1 results (`ou_total_scale`,
+      `goal_dc_weight`).
+- [ ] xG-form nudge verdict (`xg_form_elo`, `xg_form_cap`).
 
-
-## 8. Negative result: graph / style embeddings (tested, not adopted)
-
-We tested whether a **passing-network style embedding** (per-team fingerprint
-of pass length, forward/final-third/cross/long-ball ratios, pressing, possession
-— from the 314 StatsBomb matches) carries predictive signal **beyond raw team
-strength**, via leave-one-tournament-out CV (`ml/style_embed_proto.py`):
-
-| | strength only | + style embedding |
-|---|---|---|
-| Outcome RPS | 0.2376 | 0.2381 (worse +0.0005) |
-| Total-goals MAE | 1.645 | 1.654 (worse +0.008) |
-
-**Verdict: no incremental value at this scale** — it slightly *hurts* (added
-noise). This is consistent with §3.2 (style adds nothing to totals beyond shots)
-and with the football literature: outcomes are strength-dominated and high
-variance, so a GNN / graph-embedding layer for outcome/totals would face the
-same low ceiling with greater overfitting risk. The one genuinely useful
-graph — the team-result network — is **already exploited by Elo / pi-ratings**
-(rating propagation over the head-to-head graph). We therefore keep the
-calibrated ensemble and did **not** wire graph features into production. The
-prototype is retained as a reproducible negative result.
-
-
-## 9. Tactical corner deep-dive (enriched 5,232-match dataset)
-
-To push corner O/U we enriched the event-level dataset to **5,232 team-match
-rows** — all modern men's StatsBomb open competitions (WC 2018/22, Euro 20/24,
-Copa 24, AFCON 23, plus full club seasons: PL/La Liga/Ligue 1/Serie A 2015-16,
-Bundesliga, La Liga 2004-21, etc.) — and fit corner mechanism + matchup terms
-(`ml/statsbomb_dataset.py`, `ml/corner_tactics_fit.py`).
-
-**Findings (Poisson GLM, club/intl controlled):**
-- Our intl corner coefficients are **confirmed on 16× more data**: crosses→corner
-  ratio **0.389** and intl base **9.07** are unchanged (club runs higher: 0.429 / 10.06).
-- **Box entries** (passes into the penalty area) are the **single strongest**
-  corner predictor (r=0.67, stable across club+intl) — more than crosses (r≈0.5)
-  and add real signal beyond crosses+possession+shots (AIC 22983→22166, p<0.001).
-  Wide-final-third entries also add (p<0.001); byline crosses do not (p=0.10).
-- **Tactical counter-matchup does NOT amplify corners.** wide-attack × opponent-
-  concede interaction is significant but *negative/sub-additive* (coef −0.0037,
-  p=0.002) — the two main effects already capture it; an amplifying "khắc chế"
-  term would be unjustified, so none was added.
-
-**Serving impact:** none changed — the intl model is validated, and the
-strongest new feature (box entries) is event-level, not available for WC-2026
-live (LiveScore has no passing network). A candidate, NOT yet adopted: a
-**shots-in-box proxy from the LiveScore shotmap**, fit against corners on the
-StatsBomb shot locations — to be tested once enough WC-2026 matches accumulate
-to validate it (measure-first; don't ship unvalidated).
-
-
-## 10. Attack/defence λ (forward-vs-defender matchup) — fitted & adopted
-
-A user hypothesis ("tiền đạo vs hậu vệ") tested scientifically: the goal λ used
-only a single Elo gap (`exp(a ± b·elo_diff)`), which can't tell a great-attack/
-weak-defence team from a balanced one of equal Elo. The Dixon-Coles att/def
-ratings (per-team attack & defence, trained on 49k internationals) express that
-asymmetry but had weight 0 in the W/D/L blend (they lose to Elo there, RPS 0.177
-vs 0.160). We tested whether they help the GOAL-distribution targets (holdout
-2,492 recent intl matches, `ml/attdef_lambda_proto.py`):
-
-| λ source | O/U Brier | O/U bias | total MAE | score log-loss |
-|---|---|---|---|---|
-| Elo-gap (old) | 0.2512 | +0.084 | 1.477 | 2.906 |
-| att/def (DC) | 0.2522 | −0.023 | 1.428 | 2.966 |
-| **blend 50/50** | **0.2440** | +0.036 | **1.421** | **2.887** |
-
-**Adopted:** goal λ is now `0.5·Elo-gap + 0.5·att/def` (`goal_dc_weight=0.5`),
-feeding the score matrix → O/U, Asian handicap, scorelines, corners, sim. The
-att/def half is intrinsically better-calibrated (bias −0.02 vs +0.08) and the
-blend wins all three goal metrics on holdout. W/D/L still comes from the Elo
-ensemble (att/def loses there). The 0.94 totals-scale stays optimal for the
-blend (re-checked: bias −0.003). All 48 WC-2026 teams have att/def coverage.
-
-Player-level ideas (individual cohesion, "being found out", solo breakthroughs)
-were triaged out: not validatable historically (no labelled dataset) and prior
-tests show team strength dominates — so they remain qualitative chatbot context,
-not validated predictors. The attack/defence *decomposition* is the validatable
-core of "forward vs defender", and it's now in the model.
-
-
-## 11. Rest/fatigue (null) and xG-form rating update (adopted)
-
-Two more user-suggested factors, tested measure-first:
-
-**Rest / fixture congestion (Group A) — NO effect, not wired.** On 1,820
-club+intl matches (rest ≤21d), controlling for strength: rest days do not
-predict total goals (min-rest coef +0.02, p=0.15) nor margin (rest-diff coef
-+0.004, p=0.86). Consistent with the literature (congestion drives injury
-risk, not single-match output). `ml/fatigue_proto.py`.
-
-**In-tournament xG-form (Group B) — validated, adopted.** Rolling xG-form
-predicts the next result better than rolling goals-form (3,742 obs: solo R²
-0.113 vs 0.097, +17%; in a joint model xG-form coef +0.61 vs goals +0.20).
-xG is the less-noisy strength signal. `ml/xgform_proto.py`. Wired as a bounded
-in-tournament Elo nudge (`service.xg_form_delta`): a team out-performing its
-scoreline on xG (unlucky) is rated up, an over-performer down — magnitude
-grounded (~190 Elo/goal applied as a small capped fraction, ±25 Elo, decaying
-n/(n+2)), feeding every goal target, and graded in the factor scorecard. Same
-bounded-prior + live-audit discipline as the seeding prior.
-
-
-## 12. TODO — validation pass after group-stage round 1
-
-Every bounded factor below was adopted with a holdout-validated *direction* but
-is graded LIVE. **After matchday 1 of all 12 groups** (all 48 teams have played
-once, ~24 real WC-2026 matches), re-read the scorecards and keep / disable /
-re-fit each — measure on real results, never assume. Toggles are env flags (no
-code change); ship via the normal deploy.
-
-- [ ] **Factor scorecard** — verdicts for `style`, `context`, `venue`, `prior`
-      (seeding), `style_sup`, `xg_form`. "hurting" + n≥~10 → disable its flag
-      (`STYLE_SUP_ENABLED`, `XG_FORM_ENABLED`, `CONTEXT_ADJUST_ENABLED`,
-      `VENUE_ADJUST_ENABLED`, `POT_PRIOR_ENABLED`).
-- [ ] **Corners scorecard** — Brier / hit-rate / adaptive base (9.07 → observed
-      WC mean); re-check `corners_base`, `corners_cross_to_corner`.
-- [ ] **sim_timing scorecard** — ht_flip / late-goal / comeback / clean-sheet
-      predicted vs actual; re-tune `sim_state_effect` or re-fit sim if off.
-- [ ] **meta_weights** — confirm the learned W/D/L blend (active at ≥8 finished).
-- [ ] **O/U + handicap calibration** on round-1 results — re-tune `ou_total_scale`
-      / `ou_head_weight` / `goal_dc_weight` if biased.
-- [ ] **xG-form nudge** — `xg_form` verdict; tune `xg_form_elo` / `xg_form_cap`.
-
-Re-fit scripts: `ml/statsbomb_fit.py`, `statsbomb_style_fit.py`,
-`statsbomb_sim_fit.py`, `corner_tactics_fit.py`, `attdef_lambda_proto.py`,
-`fatigue_proto.py`, `xgform_proto.py` (offline; re-run to refresh coefficients).
-Candidate not yet built: §2C derived markets (clean-sheet, win-to-nil, odd/even,
-HT/FT, first/next goal) — free from the reconciled matrix/sim, zero accuracy risk.
+Not yet built: §2C derived markets (clean-sheet, win-to-nil, odd/even, HT/FT,
+first/next goal) — free from the reconciled matrix/sim, zero accuracy risk.
