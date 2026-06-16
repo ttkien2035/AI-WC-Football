@@ -399,6 +399,14 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "acc.wc_note": { vi: "Dự đoán được chốt TRƯỚC giờ bóng lăn của từng trận, đối chiếu với kết quả thật.", en: "Predictions locked BEFORE each kickoff, compared with real results." },
   "acc.pred_score": { vi: "Tỉ số dự đoán", en: "Predicted score" },
   "acc.exact": { vi: "TRÚNG TỈ SỐ", en: "EXACT SCORE" },
+  "acc.v_winner": { vi: "Thắng", en: "Winner" },
+  "acc.v_score": { vi: "Tỉ số", en: "Score" },
+  "acc.ou_goals": { vi: "T/X 2.5", en: "O/U 2.5" },
+  "acc.ou_corners": { vi: "Góc", en: "Corners" },
+  "acc.over": { vi: "Tài", en: "Over" },
+  "acc.under": { vi: "Xỉu", en: "Under" },
+  "acc.v_goals_title": { vi: "{n} bàn thực tế", en: "{n} goals actual" },
+  "acc.v_corners_title": { vi: "{n} góc thực tế", en: "{n} corners actual" },
 
   // Pipeline compare + cause notes
   "pl.compare": { vi: "Đối chiếu từng yếu tố", en: "Factor-by-factor comparison" },

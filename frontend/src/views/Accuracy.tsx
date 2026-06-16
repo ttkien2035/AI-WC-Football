@@ -34,6 +34,19 @@ export default function Accuracy() {
   const tlas = Object.values(teams).sort((a, b) => a.name.localeCompare(b.name));
   const metrics = status?.report?.test_metrics;
 
+  // a compact per-target verdict chip: label + predicted value + hit/miss/exact
+  const verdict = (label: string, value: string,
+                   state: "exact" | "hit" | "miss" | null, title?: string) => (
+    <span title={title}
+      className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2 py-0.5 text-[11px] dark:bg-white/[0.06]">
+      <span className="text-slate-400">{label}</span>
+      <b className="text-slate-700 dark:text-slate-200">{value}</b>
+      {state === "exact" ? <span>🎯</span>
+        : state === "hit" ? <span className="font-bold text-emerald-500">✓</span>
+        : state === "miss" ? <span className="font-bold text-red-400">✗</span> : null}
+    </span>
+  );
+
   return (
     <div className="space-y-4">
       {tour && tour.matches.length > 0 && (
@@ -49,31 +62,41 @@ export default function Accuracy() {
             </p>
           )}
           <div className="space-y-2">
-            {tour.matches.map((m) => (
-              <div key={m.match_id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-100/80 p-2.5 text-sm dark:bg-white/[0.07]">
-                <span className="flex items-center gap-2 font-semibold">
-                  <Flag crest={m.home.crest} tla={m.home.tla} />
-                  {m.home.tla} <b className="tabular-nums">{m.score.home}–{m.score.away}</b> {m.away.tla}
-                  <Flag crest={m.away.crest} tla={m.away.tla} />
-                </span>
-                <span className="flex items-center gap-2 text-xs">
-                  <span>
-                    {t("common.predicted")}: <b>{m.predicted}</b> ({pct(m.probs[m.predicted], 0)})
-                    {" · "}{t("acc.pred_score")}: <b>{m.compare.score.pred ?? "–"}</b>
-                  </span>
-                  {m.compare.score.hit ? (
-                    <span className="rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold text-amber-950">
-                      🎯 {t("acc.exact")}
-                    </span>
-                  ) : m.correct ? (
-                    <span className="font-bold text-emerald-500">✓</span>
-                  ) : (
-                    <span className="font-bold text-red-400">✗</span>
-                  )}
-                </span>
-              </div>
-            ))}
+            {tour.matches.map((m) => {
+              const c = m.compare;
+              const winSide = m.predicted === "draw" ? t("common.draw")
+                : m.predicted === "home" ? m.home.tla : m.away.tla;
+              const ou = c?.over25;
+              const cor = c?.corners;
+              return (
+                <div key={m.match_id}
+                  className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
+                  {/* line 1 — teams + real score */}
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Flag crest={m.home.crest} tla={m.home.tla} />
+                    {m.home.tla} <b className="tabular-nums">{m.score.home}–{m.score.away}</b> {m.away.tla}
+                    <Flag crest={m.away.crest} tla={m.away.tla} />
+                  </div>
+                  {/* line 2 — per-target verdicts: winner · score · goals O/U · corners O/U */}
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {verdict(t("acc.v_winner"), `${winSide} ${pct(m.probs[m.predicted], 0)}`,
+                      m.correct ? "hit" : "miss")}
+                    {verdict(t("acc.v_score"), c?.score?.pred ?? "–",
+                      c?.score?.hit ? "exact" : null)}
+                    {ou && ou.pred_p != null && verdict(t("acc.ou_goals"),
+                      t(ou.pred_p >= 0.5 ? "acc.over" : "acc.under"),
+                      (ou.pred_p >= 0.5) === ou.actual ? "hit" : "miss",
+                      t("acc.v_goals_title", { n: m.score.home + m.score.away }))}
+                    {cor?.pick && cor.hit != null && verdict(
+                      `${t("acc.ou_corners")}${cor.line ? " " + cor.line : ""}`,
+                      t(cor.pick === "over" ? "acc.over" : "acc.under"),
+                      cor.hit ? "hit" : "miss",
+                      cor.actual_total != null
+                        ? t("acc.v_corners_title", { n: cor.actual_total }) : undefined)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
