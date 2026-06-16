@@ -89,6 +89,14 @@ export default function Accuracy() {
                           : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}>
                       {lockText}
                     </span>
+                    {locked && m.lineup_aware != null && (
+                      <span title={t(m.lineup_aware ? "acc.xi_yes" : "acc.xi_no")}
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                          m.lineup_aware ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : "bg-amber-400/20 text-amber-600 dark:text-amber-400"}`}>
+                        {m.lineup_aware ? "XI✓" : "XI?"}
+                      </span>
+                    )}
                   </div>
                   {/* line 2 — per-target verdicts: winner · score · goals O/U · corners O/U */}
                   <div className="mt-1.5 flex flex-wrap gap-1.5">

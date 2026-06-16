@@ -410,6 +410,8 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "acc.locked": { vi: "📌 chốt trước trận", en: "📌 locked pre-match" },
   "acc.locked_lead": { vi: "📌 chốt {lead} trước KO", en: "📌 locked {lead} before KO" },
   "acc.asof": { vi: "↺ ước tính as-of (chưa snapshot)", en: "↺ as-of estimate (no snapshot)" },
+  "acc.xi_yes": { vi: "Đã chốt với đội hình CHÍNH THỨC", en: "Locked with the OFFICIAL XI" },
+  "acc.xi_no": { vi: "Khóa ở deadline trước khi đội hình ra", en: "Locked at deadline before the XI posted" },
 
   // Pipeline compare + cause notes
   "pl.compare": { vi: "Đối chiếu từng yếu tố", en: "Factor-by-factor comparison" },

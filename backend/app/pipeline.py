@@ -81,17 +81,20 @@ def _factor_counterfactuals(pred: dict) -> dict:
     return out
 
 PREMATCH_WINDOW_H = 12       # keep a provisional snapshot once kickoff is within 12h
-LOCK_LEAD_MIN = 60           # RE-PREDICT and FREEZE the graded snapshot ~1h before KO
+LOCK_LEAD_MIN = 90           # eligible to LOCK from 90 min out (official XIs post this early)
+LOCK_DEADLINE_MIN = 20       # but lock no later than 20 min before KO even if no XI posted
 
 
 async def record_prematch(matches: list[dict] | None = None) -> int:
     """Persist pre-kickoff predictions (scheduler calls this every tick).
 
     A provisional snapshot is taken when kickoff first comes within 12h, but the
-    GRADED prediction is re-run and LOCKED ~1h before kickoff — by then the line-ups
-    are out and odds have settled, so the 12h-out volatility (rotation, late XI
-    news) no longer skews the verdict. Once locked it is never overwritten, so the
-    accuracy review always grades the ~1h-before, line-up-aware call."""
+    GRADED prediction is re-run and LOCKED the moment the OFFICIAL line-up is out
+    (LiveScore posts the confirmed XI ~1h before KO). Locking on the real XI means
+    the verdict already reflects who actually starts — injuries/suspensions/rotation
+    are absorbed via the absence penalty — instead of the 12h-out guess. If no XI
+    ever posts, a 20-min safety deadline locks the best available call. Once locked
+    it is never overwritten; `lineup_aware` records whether the lock saw the XI."""
     matches = matches if matches is not None else await service.get_matches()
     now = datetime.now(timezone.utc)
     n = 0
@@ -108,12 +111,16 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
         key = f"prematch:{m['id']}"
         existing, _ = cache.get_stale(key)
         if existing and existing.get("locked"):
-            continue                              # frozen at ~1h before KO
-        within_lock = until <= LOCK_LEAD_MIN * 60
-        if existing and not within_lock:
-            continue                              # hold the provisional; wait for the 1h lock
+            continue                              # frozen — never re-touched
+        lineups_confirmed = bool(m.get("lineups"))
+        # LOCK the moment the official XI is out (inside the 90-min window); if it
+        # never posts, lock by the 20-min safety deadline.
+        should_lock = until <= LOCK_LEAD_MIN * 60 and (
+            lineups_confirmed or until <= LOCK_DEADLINE_MIN * 60)
+        if existing and not should_lock:
+            continue                              # hold provisional; wait for the official XI
         try:
-            pred = await service.predict(h, a)    # fresh: latest line-ups + odds at lock time
+            pred = await service.predict(h, a)    # fresh: official XI + settled odds at lock
         except Exception:
             continue
         comp = pred.get("components") or {}
@@ -126,8 +133,8 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "corners_expected": (pred.get("corners") or {}).get("expected"),
             "market_lines": pred.get("market_lines"),
             "absence": pred.get("absence_penalty"),
-            "lineup_aware": bool(m.get("lineups")),
-            "locked": within_lock,                # True only inside the 1h window
+            "lineup_aware": lineups_confirmed,
+            "locked": should_lock,                # locked on the official XI (or deadline)
             # factor scorecard + meta-calibration inputs (graded post-match):
             "factors": _factor_counterfactuals(pred),
             "scenarios": (pred.get("simulation") or {}).get("scenarios"),
@@ -346,6 +353,7 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
             "probs": {k: round(v, 4) for k, v in probs.items()},
             "probs_source": src,
             "prematch_ts": (pm or {}).get("ts"),   # when the pre-match snapshot was locked
+            "lineup_aware": (pm or {}).get("lineup_aware"),  # locked with the official XI?
             "predicted": pick, "actual": actual, "correct": correct,
             "p_actual": round(p_actual, 4),
             "tag": _surprise_tag(correct, p_actual, probs[pick]),

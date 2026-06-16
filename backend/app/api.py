@@ -83,7 +83,8 @@ async def evaluate_tournament():
     public = [
         {k: r[k] for k in ("match_id", "date", "stage", "home", "away", "score",
                            "ht_score", "probs", "predicted", "actual", "correct",
-                           "p_actual", "tag", "compare", "probs_source", "prematch_ts")}
+                           "p_actual", "tag", "compare", "probs_source", "prematch_ts",
+                           "lineup_aware")}
         for r in rev["matches"]
     ]
     return {"matches": public, "summary": rev["summary"]}
