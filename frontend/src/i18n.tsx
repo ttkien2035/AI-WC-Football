@@ -401,7 +401,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "acc.exact": { vi: "TRÚNG TỈ SỐ", en: "EXACT SCORE" },
   "acc.v_winner": { vi: "Thắng", en: "Winner" },
   "acc.v_score": { vi: "Tỉ số", en: "Score" },
-  "acc.ou_goals": { vi: "T/X 2.5", en: "O/U 2.5" },
+  "acc.ou_goals": { vi: "Bàn", en: "Goals" },
   "acc.ou_corners": { vi: "Góc", en: "Corners" },
   "acc.over": { vi: "Tài", en: "Over" },
   "acc.under": { vi: "Xỉu", en: "Under" },

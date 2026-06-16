@@ -316,6 +316,12 @@ export type CompareBlock = {
   score: { pred: string | null; actual: string; hit: boolean };
   total_goals: { pred_xg: number | null; actual: number };
   over25: { pred_p: number | null; actual: boolean };
+  // total-goals O/U graded at the market's ASIAN line (e.g. 2.75), not fixed 2.5
+  goals: {
+    line?: number; p_over?: number; pick?: "over" | "under";
+    actual_total?: number | null; actual?: "over" | "under" | "push";
+    hit?: boolean; line_source?: string; pred_p?: number | null;
+  };
   btts: { pred_p: number | null; actual: boolean };
   corners: {
     // O/U verdict shape (new snapshots) — falls back to expectation-only

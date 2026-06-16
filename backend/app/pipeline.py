@@ -160,6 +160,29 @@ def _corners_ou_verdict(pm: dict | None, c_exp: float | None,
     return out
 
 
+def _goals_ou_verdict(pm: dict | None, total_goals: int | None) -> dict:
+    """Grade total-goals Over/Under at the MARKET's Asian line (e.g. 2.75), not a
+    fixed 2.5 — the model's Tài/Xỉu pick vs the actual total. Falls back to the
+    trained 2.5 head only when no market goals line was captured pre-match."""
+    ml_g = ((pm or {}).get("market_lines") or {}).get("goals")
+    if ml_g and ml_g.get("over") is not None:
+        line, p_over = float(ml_g["line"]), float(ml_g["over"])
+        src = ml_g.get("source", "market")
+    else:                                   # old/snapshot-less: trained 2.5 head
+        p25 = (pm or {}).get("over25")
+        if p25 is None:
+            return {"pred_p": None, "actual": (total_goals or 0) > 2}
+        line, p_over, src = 2.5, float(p25), "default"
+    pick = "over" if p_over >= 0.5 else "under"
+    out = {"line": line, "p_over": round(p_over, 4), "pick": pick, "line_source": src}
+    if total_goals is not None:
+        actual = "over" if total_goals > line else ("push" if total_goals == line else "under")
+        out["actual_total"] = total_goals
+        out["actual"] = actual
+        out["hit"] = (actual == "push") or (pick == actual)
+    return out
+
+
 def _surprise_tag(correct: bool, p_actual: float, p_pick: float) -> str:
     if correct and p_pick >= 0.55:
         return "confident_hit"
@@ -245,6 +268,7 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
                             "actual": total_goals},
             "over25": {"pred_p": (pm or {}).get("over25"),
                        "actual": total_goals > 2},
+            "goals": _goals_ou_verdict(pm, total_goals),
             "btts": {"pred_p": (pm or {}).get("btts"),
                      "actual": gh > 0 and ga > 0},
             "corners": _corners_ou_verdict(pm, c_exp, c_total, corners),

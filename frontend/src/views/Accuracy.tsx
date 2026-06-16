@@ -66,7 +66,7 @@ export default function Accuracy() {
               const c = m.compare;
               const winSide = m.predicted === "draw" ? t("common.draw")
                 : m.predicted === "home" ? m.home.tla : m.away.tla;
-              const ou = c?.over25;
+              const g = c?.goals;          // total-goals O/U at the market's Asian line
               const cor = c?.corners;
               return (
                 <div key={m.match_id}
@@ -83,9 +83,10 @@ export default function Accuracy() {
                       m.correct ? "hit" : "miss")}
                     {verdict(t("acc.v_score"), c?.score?.pred ?? "–",
                       c?.score?.hit ? "exact" : null)}
-                    {ou && ou.pred_p != null && verdict(t("acc.ou_goals"),
-                      t(ou.pred_p >= 0.5 ? "acc.over" : "acc.under"),
-                      (ou.pred_p >= 0.5) === ou.actual ? "hit" : "miss",
+                    {g?.pick && g.hit != null && verdict(
+                      `${t("acc.ou_goals")}${g.line ? " " + g.line : ""}`,
+                      t(g.pick === "over" ? "acc.over" : "acc.under"),
+                      g.hit ? "hit" : "miss",
                       t("acc.v_goals_title", { n: m.score.home + m.score.away }))}
                     {cor?.pick && cor.hit != null && verdict(
                       `${t("acc.ou_corners")}${cor.line ? " " + cor.line : ""}`,
