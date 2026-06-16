@@ -342,6 +342,8 @@ export type TournamentEval = {
     probs: Record<string, number>;
     predicted: string; actual: string; correct: boolean;
     p_actual: number; tag: string; compare: CompareBlock;
+    probs_source?: string;            // "prematch_snapshot" (locked) | "as_of_recompute"
+    prematch_ts?: string | null;      // when the pre-match snapshot was locked
   }[];
   summary: { n: number; correct: number; accuracy: number; rps: number } | null;
 };

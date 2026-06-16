@@ -68,14 +68,27 @@ export default function Accuracy() {
                 : m.predicted === "home" ? m.home.tla : m.away.tla;
               const g = c?.goals;          // total-goals O/U at the market's Asian line
               const cor = c?.corners;
+              const locked = m.probs_source === "prematch_snapshot";
+              const leadH = locked && m.prematch_ts
+                ? (new Date(m.date).getTime() - new Date(m.prematch_ts).getTime()) / 3.6e6 : null;
+              const lockText = !locked ? t("acc.asof")
+                : leadH != null ? t("acc.locked_lead",
+                    { lead: leadH >= 1 ? `${Math.round(leadH)}h` : `${Math.max(1, Math.round(leadH * 60))}m` })
+                : t("acc.locked");
               return (
                 <div key={m.match_id}
                   className="rounded-xl bg-slate-100/80 p-2.5 dark:bg-white/[0.07]">
-                  {/* line 1 — teams + real score */}
+                  {/* line 1 — teams + real score + pre-match lock badge */}
                   <div className="flex items-center gap-2 text-sm font-semibold">
                     <Flag crest={m.home.crest} tla={m.home.tla} />
                     {m.home.tla} <b className="tabular-nums">{m.score.home}–{m.score.away}</b> {m.away.tla}
                     <Flag crest={m.away.crest} tla={m.away.tla} />
+                    <span title={m.prematch_ts ? `${m.prematch_ts} → KO ${m.date}` : undefined}
+                      className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        locked ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                          : "bg-slate-200 text-slate-500 dark:bg-white/10 dark:text-slate-400"}`}>
+                      {lockText}
+                    </span>
                   </div>
                   {/* line 2 — per-target verdicts: winner · score · goals O/U · corners O/U */}
                   <div className="mt-1.5 flex flex-wrap gap-1.5">

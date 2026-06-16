@@ -407,6 +407,9 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "acc.under": { vi: "Xỉu", en: "Under" },
   "acc.v_goals_title": { vi: "{n} bàn thực tế", en: "{n} goals actual" },
   "acc.v_corners_title": { vi: "{n} góc thực tế", en: "{n} corners actual" },
+  "acc.locked": { vi: "📌 chốt trước trận", en: "📌 locked pre-match" },
+  "acc.locked_lead": { vi: "📌 chốt {lead} trước KO", en: "📌 locked {lead} before KO" },
+  "acc.asof": { vi: "↺ ước tính as-of (chưa snapshot)", en: "↺ as-of estimate (no snapshot)" },
 
   // Pipeline compare + cause notes
   "pl.compare": { vi: "Đối chiếu từng yếu tố", en: "Factor-by-factor comparison" },

@@ -339,6 +339,7 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
             "score": {"home": gh, "away": ga}, "ht_score": ht,
             "probs": {k: round(v, 4) for k, v in probs.items()},
             "probs_source": src,
+            "prematch_ts": (pm or {}).get("ts"),   # when the pre-match snapshot was locked
             "predicted": pick, "actual": actual, "correct": correct,
             "p_actual": round(p_actual, 4),
             "tag": _surprise_tag(correct, p_actual, probs[pick]),
