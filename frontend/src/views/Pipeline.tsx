@@ -493,11 +493,16 @@ function ReviewCard({ r }: { r: ReviewRow }) {
               <CmpRow label={t("pl.c_goals")}
                 pred={r.compare.total_goals.pred_xg != null ? `xG ${r.compare.total_goals.pred_xg}` : "–"}
                 actual={String(r.compare.total_goals.actual)} />
-              <CmpRow label={t("pl.c_o25")}
-                pred={r.compare.over25.pred_p != null ? pct(r.compare.over25.pred_p) : "–"}
-                actual={r.compare.over25.actual ? "✓" : "✗"}
-                hit={r.compare.over25.pred_p != null
-                  ? (r.compare.over25.pred_p > 0.5) === r.compare.over25.actual : undefined} />
+              <CmpRow label={`${t("acc.ou_goals")} ${r.compare.goals?.line ?? 2.5}`}
+                pred={r.compare.goals?.pick
+                  ? `${t(r.compare.goals.pick === "over" ? "acc.over" : "acc.under")}${
+                      r.compare.goals.p_over != null ? " " + pct(r.compare.goals.p_over) : ""}`
+                  : (r.compare.over25.pred_p != null ? pct(r.compare.over25.pred_p) : "–")}
+                actual={r.compare.goals?.actual_total != null
+                  ? String(r.compare.goals.actual_total)
+                  : (r.compare.over25.actual ? "✓" : "✗")}
+                hit={r.compare.goals?.hit ?? (r.compare.over25.pred_p != null
+                  ? (r.compare.over25.pred_p > 0.5) === r.compare.over25.actual : undefined)} />
               <CmpRow label={t("pl.c_btts")}
                 pred={r.compare.btts.pred_p != null ? pct(r.compare.btts.pred_p) : "–"}
                 actual={r.compare.btts.actual ? "✓" : "✗"}

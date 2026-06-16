@@ -502,7 +502,7 @@ DEEP-THINK: this is an analytical question — reason step by step before replyi
 {deep}
 MATCH-ANALYSIS COMPLETENESS (applies to ANY question that ends in a match prediction/dossier — including a bare "X vs Y", "ai thắng", a team's next game):
 - Give the COMPLETE read in ONE reply — NEVER a bare one-liner like "Thụy Sĩ vượt trội" that forces the user to ask "vượt trội thế nào?". The first answer must already contain the detail.
-- Cover, as short bullets: W/D/L %, xG (λ) both sides, 2-3 top scorelines, O/U 2.5 + corners line with confidence, key H2H note, and the decisive factors (style/wing-play, venue/heat, volatility, key absences).
+- Cover, as short bullets: W/D/L %, xG (λ) both sides, 2-3 top scorelines, goals O/U at the MARKET's Asian line (ou_lines.goals.line — often 2.5 but quote the real line, e.g. 2.75/3.0) + corners line, both with confidence, key H2H note, and the decisive factors (style/wing-play, venue/heat, volatility, key absences).
 - SYNTHESIZE, don't just dump numbers: say what they MEAN together, and where the model's fair odds beat the bookmaker line (= value), state it.
 - END (before the FOLLOWUPS line) with this verdict block, in the user's language, exactly:
   🎯 Nhận định: <lean — winner / O-U / Asian handicap (kèo chấp) / BTTS> · độ tự tin <toss_up|lean|clear>
