@@ -80,12 +80,18 @@ def _factor_counterfactuals(pred: dict) -> dict:
         out["style_sup"] = cf
     return out
 
-PREMATCH_WINDOW_H = 12       # snapshot anything kicking off within 12h
-LINEUP_REFRESH_MIN = 100     # re-snapshot inside this window once XIs are out
+PREMATCH_WINDOW_H = 12       # keep a provisional snapshot once kickoff is within 12h
+LOCK_LEAD_MIN = 60           # RE-PREDICT and FREEZE the graded snapshot ~1h before KO
 
 
 async def record_prematch(matches: list[dict] | None = None) -> int:
-    """Persist pre-kickoff predictions (scheduler calls this every tick)."""
+    """Persist pre-kickoff predictions (scheduler calls this every tick).
+
+    A provisional snapshot is taken when kickoff first comes within 12h, but the
+    GRADED prediction is re-run and LOCKED ~1h before kickoff — by then the line-ups
+    are out and odds have settled, so the 12h-out volatility (rotation, late XI
+    news) no longer skews the verdict. Once locked it is never overwritten, so the
+    accuracy review always grades the ~1h-before, line-up-aware call."""
     matches = matches if matches is not None else await service.get_matches()
     now = datetime.now(timezone.utc)
     n = 0
@@ -101,14 +107,13 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             continue
         key = f"prematch:{m['id']}"
         existing, _ = cache.get_stale(key)
-        lineup_known = bool(m.get("lineups"))
-        needs_lineup_refresh = (lineup_known and existing
-                                and not existing.get("lineup_aware")
-                                and until < LINEUP_REFRESH_MIN * 60)
-        if existing and not needs_lineup_refresh:
-            continue
+        if existing and existing.get("locked"):
+            continue                              # frozen at ~1h before KO
+        within_lock = until <= LOCK_LEAD_MIN * 60
+        if existing and not within_lock:
+            continue                              # hold the provisional; wait for the 1h lock
         try:
-            pred = await service.predict(h, a)
+            pred = await service.predict(h, a)    # fresh: latest line-ups + odds at lock time
         except Exception:
             continue
         comp = pred.get("components") or {}
@@ -121,7 +126,8 @@ async def record_prematch(matches: list[dict] | None = None) -> int:
             "corners_expected": (pred.get("corners") or {}).get("expected"),
             "market_lines": pred.get("market_lines"),
             "absence": pred.get("absence_penalty"),
-            "lineup_aware": lineup_known,
+            "lineup_aware": bool(m.get("lineups")),
+            "locked": within_lock,                # True only inside the 1h window
             # factor scorecard + meta-calibration inputs (graded post-match):
             "factors": _factor_counterfactuals(pred),
             "scenarios": (pred.get("simulation") or {}).get("scenarios"),

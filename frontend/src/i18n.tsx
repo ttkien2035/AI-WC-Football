@@ -396,7 +396,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
 
   // Tournament accuracy (public)
   "acc.wc_heading": { vi: "⚽ World Cup 2026 — kiểm chứng trực tiếp", en: "⚽ World Cup 2026 — live verification" },
-  "acc.wc_note": { vi: "Dự đoán được chốt TRƯỚC giờ bóng lăn của từng trận, đối chiếu với kết quả thật.", en: "Predictions locked BEFORE each kickoff, compared with real results." },
+  "acc.wc_note": { vi: "Dự đoán được CHỐT ~1h trước giờ bóng lăn (khi đội hình đã ra & kèo ổn định), đối chiếu với kết quả thật.", en: "Predictions LOCKED ~1h before kickoff (line-ups out, odds settled), compared with real results." },
   "acc.pred_score": { vi: "Tỉ số dự đoán", en: "Predicted score" },
   "acc.exact": { vi: "TRÚNG TỈ SỐ", en: "EXACT SCORE" },
   "acc.v_winner": { vi: "Thắng", en: "Winner" },
