@@ -219,7 +219,7 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
         if idx is not None:
             before = ml_ensemble.elo_by_tla(all_t[:idx]) or {}
             after = ml_ensemble.elo_by_tla(all_t[:idx + 1]) or {}
-            if h in before and h in after:
+            if h in before and h in after and a in before and a in after:
                 elo_shift = {"home": round(after[h] - before[h], 1),
                              "away": round(after[a] - before[a], 1)}
 
