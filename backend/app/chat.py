@@ -6,6 +6,7 @@
 - Hard cost controls: 5 questions/day/visitor, global daily cap, IP backstop,
   thinkingBudget=0, max_output_tokens, <=3 tool rounds
 """
+import asyncio
 import json
 import logging
 import time
@@ -649,44 +650,57 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
             last_status = 0
             non_quota_fail = False        # distinguish "all keys out of quota" from a real error
             try:
-                for idx, key in available_keys():
-                    resp_cm = client.stream(
-                        "POST",
-                        f"{GEMINI}/{settings.chat_model}:streamGenerateContent",
-                        params={"alt": "sse"},
-                        headers={"x-goog-api-key": key},
-                        json=body)
-                    resp = await resp_cm.__aenter__()
-                    if resp.status_code != 200:
-                        detail = (await resp.aread())[:300].decode(errors="ignore")
+                # one backoff re-sweep if EVERY key hits a transient blip (503) —
+                # safe because nothing has streamed yet while stream_ok is False
+                for sweep in range(2):
+                    for idx, key in available_keys():
+                        resp_cm = client.stream(
+                            "POST",
+                            f"{GEMINI}/{settings.chat_model}:streamGenerateContent",
+                            params={"alt": "sse"},
+                            headers={"x-goog-api-key": key},
+                            json=body)
+                        resp = await resp_cm.__aenter__()
+                        if resp.status_code != 200:
+                            detail = (await resp.aread())[:300].decode(errors="ignore")
+                            await resp_cm.__aexit__(None, None, None)
+                            last_status = resp.status_code
+                            if _is_quota_error(resp.status_code, detail):
+                                mark_exhausted(idx)
+                                continue
+                            if resp.status_code in (500, 502, 503, 504):
+                                # transient Gemini overload — try the NEXT key instead
+                                # of giving up (this 503 was the main "hay tạch" cause)
+                                log.warning("gemini %s transient — trying next key",
+                                            resp.status_code)
+                                continue
+                            non_quota_fail = True
+                            log.warning("gemini %s: %s", resp.status_code, detail[:200])
+                            break
+                        stream_ok = True
+                        async for line in resp.aiter_lines():
+                            if not line.startswith("data:"):
+                                continue
+                            try:
+                                chunk = json.loads(line[5:].strip())
+                            except json.JSONDecodeError:
+                                continue
+                            for part in (chunk.get("candidates", [{}])[0]
+                                         .get("content", {}).get("parts", [])):
+                                model_parts.append(part)
+                                if "functionCall" in part:
+                                    fn_calls.append(part["functionCall"])
+                                elif part.get("text"):
+                                    full_text.append(part["text"])
+                                    for piece in _emit_deltas(part["text"]):
+                                        yield json.dumps({"type": "delta",
+                                                          "text": piece}) + "\n"
                         await resp_cm.__aexit__(None, None, None)
-                        last_status = resp.status_code
-                        if _is_quota_error(resp.status_code, detail):
-                            mark_exhausted(idx)
-                            continue
-                        non_quota_fail = True
-                        log.warning("gemini %s: %s", resp.status_code, detail[:200])
-                        break
-                    stream_ok = True
-                    async for line in resp.aiter_lines():
-                        if not line.startswith("data:"):
-                            continue
-                        try:
-                            chunk = json.loads(line[5:].strip())
-                        except json.JSONDecodeError:
-                            continue
-                        for part in (chunk.get("candidates", [{}])[0]
-                                     .get("content", {}).get("parts", [])):
-                            model_parts.append(part)
-                            if "functionCall" in part:
-                                fn_calls.append(part["functionCall"])
-                            elif part.get("text"):
-                                full_text.append(part["text"])
-                                for piece in _emit_deltas(part["text"]):
-                                    yield json.dumps({"type": "delta",
-                                                      "text": piece}) + "\n"
-                    await resp_cm.__aexit__(None, None, None)
-                    break          # streamed successfully — stop trying keys
+                        break          # streamed successfully — stop trying keys
+                    if stream_ok or non_quota_fail:
+                        break          # done, or a hard error — no point re-sweeping
+                    if sweep == 0:
+                        await asyncio.sleep(1.2)   # all keys transient — brief backoff
             except httpx.HTTPError as e:
                 log.warning("gemini stream error: %s", e)
                 yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
