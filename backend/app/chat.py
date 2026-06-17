@@ -505,7 +505,7 @@ MATCH-ANALYSIS COMPLETENESS (applies to ANY question that ends in a match predic
 - Cover, as short bullets: W/D/L %, xG (λ) both sides, 2-3 top scorelines, goals O/U at the MARKET's Asian line (ou_lines.goals.line — often 2.5 but quote the real line, e.g. 2.75/3.0) + corners line, both with confidence, key H2H note, and the decisive factors (style/wing-play, venue/heat, volatility, key absences).
 - SYNTHESIZE, don't just dump numbers: say what they MEAN together, and where the model's fair odds beat the bookmaker line (= value), state it.
 - END (before the FOLLOWUPS line) with this verdict block, in the user's language, exactly:
-  🎯 Nhận định: <lean — winner / O-U / Asian handicap (kèo chấp) / BTTS> · độ tự tin <toss_up|lean|clear>
+  🎯 Nhận định: <kèo bạn nghiêng về — thắng-thua / Tài-Xỉu / chấp (kèo chấp) / BTTS> · độ tin cậy: <diễn giải bằng NGÔN NGỮ NGƯỜI DÙNG, không in enum tiếng Anh>
   ▸ Lý do: <2-3 bullets tying the call to concrete factors + model-vs-market value>
   ▸ Lưu ý: <volatility/biến động or caveat> — tham khảo thống kê, không phải lời khuyên cá cược.
 - Be decisive but honest: a genuine 50-50 is a 50-50; if volatility.level is high, soften the pick.
@@ -516,7 +516,7 @@ RULES:
 - You may answer ANY football question — this World Cup first, but also football history, legendary players, clubs, other tournaments, rules, venues, player/team comparisons, "who scores most" etc. Retrieval order: internal KB/data tools FIRST, then web search; only refuse clearly non-football topics.
 - Common question → tool map: "thể thức/luật/sân nào/chủ nhà/khi nào (giải)" → get_wc_info · "tin mới nhất/có gì mới" → get_wc_news · "trận kế tiếp/lịch đấu" → get_upcoming_fixtures · "soi kèo/tài xỉu" → get_match_prediction (+ get_market_odds) · "AI dự đoán/tỉ lệ" → get_match_prediction · "lịch sử đối đầu" → get_h2h_record (2018+; older → web) · "đội hình dự kiến" → get_expected_lineups · "kết quả" → get_recent_results · history/transfers/other → search_football_news. Chain tools freely.
 - ⚠️ ONE-TEAM QUESTIONS — NEVER ask the user for the opponent. If the user names ONE team and asks anything about "its match" — including "kèo [X]", "kèo cọt trận [X]", "soi [X]", "nên đánh tỉ số nào cho [X]", "[X] đá thế nào", "phân tích trận [X]", "[X] tối nay/sắp tới", "next match of X" — they mean that team's NEAREST live-or-upcoming WC-2026 fixture. You MUST discover it yourself: call get_upcoming_fixtures(team=X) (and/or get_live_and_today), take the soonest fixture, then immediately call get_match_dossier on that matchup and give the full analysis + verdict. Asking "đối thủ là ai?" is a FAILURE — the answer is one tool call away. Only reply "no match" if the team truly has no live/scheduled fixture at all.
-- When giving Over/Under or a tip, ALWAYS state the confidence (toss_up/lean/clear from ou_lines) — never sound certain on a 50-50 fixture — and give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean. If volatility.level is "high", warn that the result has a high chance of flipping vs half-time (quote scenarios.ht_flip) and soften the pick accordingly.
+- When giving Over/Under or a tip, ALWAYS state the confidence — but TRANSLATE the ou_lines enum into the user's language, NEVER print the raw English token. Map: clear → "rõ ràng" (vi) / "clear" (en); lean → "nghiêng nhẹ" (vi) / "slight lean" (en); toss_up → "50-50 khó đoán" (vi) / "toss-up" (en). Never sound certain on a 50-50 fixture; give the reason from the factors (venue altitude/heat, both-defensive style, dead rubber, absences). Quote the most-likely scoreline consistently with the O/U lean. If volatility.level is "high", warn that the result has a high chance of flipping vs half-time (quote scenarios.ht_flip) and soften the pick accordingly.
 - Resolve follow-up references from the conversation history: if the user says "tỉ lệ kèo", "trận này", "còn hiệp 1?", "what about corners?" without naming teams, they mean the matchup discussed in the most recent turns — call the tool with that matchup directly. Only ask which match if NO matchup appears anywhere in the history.
 - Answer in the SAME language as the user's question (Vietnamese or English). Warm, expert; light emoji; short bullet lists for numbers. Pure lookups (when/where/format/lineup) stay concise (<=120 words). Match analysis: complete but tight (150-320 words) and finish with the verdict block.
 - Decline only clearly NON-football topics (coding, politics, homework...) in one polite sentence.
@@ -585,8 +585,12 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
     analysis = skill is None and wants_analysis(message)
     think_budget = settings.chat_think_budget if analysis else 0
     max_rounds = settings.chat_analysis_rounds if analysis else MAX_TOOL_ROUNDS
-    max_out = (settings.chat_analysis_max_output_tokens if analysis
-               else settings.chat_max_output_tokens)
+    answer_budget = (settings.chat_analysis_max_output_tokens if analysis
+                     else settings.chat_max_output_tokens)
+    # Gemini 2.5 counts THINKING tokens against maxOutputTokens, so the cap must
+    # cover thinking + the answer — otherwise the reply is cut off mid-sentence
+    # after the model finishes thinking (the "trả lời 1 đoạn rồi đứt" bug).
+    max_out = answer_budget + think_budget
     if analysis:
         yield json.dumps({"type": "thinking"}) + "\n"
 
@@ -622,7 +626,9 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
         emit_state["sent"] = len(acc)
         return [out] if out else []
 
-    async with httpx.AsyncClient(timeout=60) as client:
+    # generous read timeout: deep analysis can think for a while before the first
+    # token, and tool rounds add up — 60s was cutting long answers off as "upstream".
+    async with httpx.AsyncClient(timeout=httpx.Timeout(180.0, connect=10.0)) as client:
         for round_i in range(max_rounds + 1):
             body = {
                 "system_instruction": {"parts": [{"text": _system(lang, analysis)}]},
@@ -641,6 +647,7 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
             # happens at header time — nothing has streamed yet, safe to retry)
             stream_ok = False
             last_status = 0
+            non_quota_fail = False        # distinguish "all keys out of quota" from a real error
             try:
                 for idx, key in available_keys():
                     resp_cm = client.stream(
@@ -657,6 +664,7 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
                         if _is_quota_error(resp.status_code, detail):
                             mark_exhausted(idx)
                             continue
+                        non_quota_fail = True
                         log.warning("gemini %s: %s", resp.status_code, detail[:200])
                         break
                     stream_ok = True
@@ -685,8 +693,11 @@ async def stream_chat(visitor: str, ip: str, message: str | None,
                 return
 
             if not stream_ok:
-                log.warning("all gemini keys failed (last status %s)", last_status)
-                yield json.dumps({"type": "error", "code": "upstream"}) + "\n"
+                # no real error, just every key out of daily quota -> "busy"
+                code = "upstream" if non_quota_fail else "busy"
+                log.warning("all gemini keys failed (last status %s, code %s)",
+                            last_status, code)
+                yield json.dumps({"type": "error", "code": code}) + "\n"
                 return
 
             if not fn_calls:

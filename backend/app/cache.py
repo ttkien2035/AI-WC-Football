@@ -18,7 +18,11 @@ _lock = threading.Lock()
 
 
 def _conn():
-    c = sqlite3.connect(_DB)
+    c = sqlite3.connect(_DB, timeout=10)
+    # WAL = concurrent readers + one writer across uvicorn --workers processes;
+    # busy_timeout makes a writer WAIT for a lock instead of erroring out.
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA busy_timeout=5000")
     c.execute(
         "CREATE TABLE IF NOT EXISTS cache (k TEXT PRIMARY KEY, v TEXT, ts REAL)"
     )

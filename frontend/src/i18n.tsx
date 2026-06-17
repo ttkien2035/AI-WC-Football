@@ -363,6 +363,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   },
   "chat.sources": { vi: "Nguồn", en: "Sources" },
   "chat.error": { vi: "Có lỗi khi kết nối AI — thử lại sau nhé.", en: "AI connection error — please try again later." },
+  "chat.busy": { vi: "🤖 AI đang quá tải (nhiều người hỏi cùng lúc) — thử lại sau ít phút nhé.", en: "🤖 The AI is overloaded (high demand right now) — please try again in a few minutes." },
   "chat.disclaimer": { vi: "Tham khảo thống kê — không phải khuyến nghị cá cược", en: "Statistical reference — not betting advice" },
   "chat.chip_deep": { vi: "Phân tích sâu trận {m}", en: "Deep-dive {m}" },
   "chat.chip_value": { vi: "Soi kèo value hôm nay", en: "Find today's value bets" },

@@ -8,7 +8,9 @@
   and precompute a fresh tournament simulation so the UI stays instant.
 """
 import asyncio
+import fcntl
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -22,6 +24,7 @@ from .engine import ml_ensemble
 log = logging.getLogger("scheduler")
 
 _state = {"finished_ids": set(), "running": False, "retraining": False}
+_lock_fp = None               # held for process lifetime once acquired
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 RETRAIN_HOUR_UTC = 3          # nightly, after the day's matches are done
@@ -126,8 +129,21 @@ async def _tick() -> float:
 
 
 async def run() -> None:
+    global _lock_fp
     if _state["running"]:
         return
+    # SINGLETON across uvicorn --workers: only the worker that grabs this
+    # exclusive lock runs the loop. Otherwise every worker would run its own
+    # scheduler → N× the football-data/odds API calls (quota!) + racing snapshot
+    # writes. Other workers stand down and just serve requests.
+    lock_dir = os.environ.get("CACHE_DIR") or str(BACKEND_DIR / "app" / "data")
+    try:
+        _lock_fp = open(os.path.join(lock_dir, "scheduler.lock"), "w")
+        fcntl.flock(_lock_fp.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError):
+        log.info("scheduler: another worker holds the lock — standing down")
+        return
+    log.info("scheduler: acquired singleton lock — running")
     _state["running"] = True
     while True:
         try:

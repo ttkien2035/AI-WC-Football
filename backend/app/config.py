@@ -54,7 +54,9 @@ class Settings(BaseSettings):
     chat_daily_per_user: int = 10
     chat_daily_global: int = 300
     chat_max_output_tokens: int = 850   # room for a full match breakdown + verdict
-    chat_analysis_max_output_tokens: int = 1100  # deep-think answers run longer
+    chat_analysis_max_output_tokens: int = 1500  # deep-think answers run longer
+    # NOTE: the request cap sent to Gemini is answer_budget + chat_think_budget,
+    # because 2.5 counts thinking tokens against maxOutputTokens (see chat.py).
     chat_think_budget: int = 3072    # Gemini thinking tokens for analysis intent
     chat_analysis_rounds: int = 5    # tool rounds allowed for analytical questions
 

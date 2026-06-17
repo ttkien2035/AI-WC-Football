@@ -138,7 +138,10 @@ export default function ChatWidget() {
               setRemaining(ev.remaining);
               setFollowups(ev.followups ?? []);
             } else if (ev.type === "error") {
-              bot.text = ev.code === "quota" ? t("chat.quota_out", { n: limit }) : t("chat.error");
+              const msg = ev.code === "quota" ? t("chat.quota_out", { n: limit })
+                : ev.code === "busy" ? t("chat.busy") : t("chat.error");
+              // keep whatever already streamed; append the notice instead of wiping it
+              bot.text = bot.text ? `${bot.text}\n\n_${msg}_` : msg;
               if (ev.code === "quota") setRemaining(0);
             }
             out[out.length - 1] = bot;
@@ -149,7 +152,10 @@ export default function ChatWidget() {
     } catch {
       setMsgs((prev) => {
         const out = [...prev];
-        out[out.length - 1] = { ...out[out.length - 1], text: t("chat.error") };
+        const cur = out[out.length - 1];
+        // a mid-stream drop: keep the partial answer, append a soft notice
+        out[out.length - 1] = { ...cur,
+          text: cur.text ? `${cur.text}\n\n_${t("chat.error")}_` : t("chat.error") };
         return out;
       });
     } finally {
