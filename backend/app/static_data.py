@@ -170,7 +170,8 @@ ODDS_NAME_TO_TLA = {
 # or a predict request can never 404 on a code mismatch (e.g. fd briefly used
 # CUR for Curaçao, our canonical is CUW).
 TLA_ALIASES = {
-    "CUR": "CUW",   # Curaçao (extend as feeds reveal more mismatches)
+    "CUR": "CUW",   # Curaçao
+    "URU": "URY",   # Uruguay — fd.org standings say URU but matches say URY; URY is canonical
 }
 
 
