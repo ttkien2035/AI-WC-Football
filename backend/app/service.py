@@ -41,6 +41,19 @@ async def get_teams() -> dict[str, dict]:
         t["elo"] = ratings.get(tla, meta.get("elo", 1700))
         t["fifa_rank"] = meta.get("fifa")
         t["pot"] = meta.get("pot")
+    # Guarantee EVERY WC team is present even if the live standings table hasn't
+    # listed it yet (group not tabled, late qualifier, feed gap) — otherwise any
+    # teams[tla] lookup (odds_board, predict, ...) 500s with KeyError (e.g. URY).
+    for tla, meta in TEAMS.items():
+        if tla not in table:
+            table[tla] = {
+                "id": None, "name": meta.get("name", tla), "tla": tla,
+                "crest": "", "group": meta.get("group"),
+                "played": 0, "won": 0, "draw": 0, "lost": 0,
+                "gf": 0, "ga": 0, "points": 0,
+                "elo": ratings.get(tla, meta.get("elo", 1700)),
+                "fifa_rank": meta.get("fifa"), "pot": meta.get("pot"),
+            }
     return table
 
 
