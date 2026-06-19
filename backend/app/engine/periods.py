@@ -146,7 +146,7 @@ def corners(lam_h: float, lam_a: float, elo_h: float, elo_a: float,
       • a crossing-volume nudge (wing play -> more corners).
     `total_factor` is the style-matchup multiplier on the total (crossfest vs
     starved); `priors` are style cold-start (for, against) per side."""
-    intensity = ((lam_h + lam_a) / settings.goals_mu) ** 0.7
+    intensity = ((lam_h + lam_a) / settings.goals_mu) ** settings.corners_intensity_exp
     total = (base if base is not None else settings.corners_base) * intensity * total_factor
     we = elo_expected(elo_h, elo_a)            # dominance proxy
     share_h = 0.35 + 0.30 * we                 # 0.35..0.65

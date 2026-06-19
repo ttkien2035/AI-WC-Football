@@ -216,6 +216,13 @@ class Settings(BaseSettings):
     # corners_fit.json if present. Raw corner count trusted only slowly (raw_k).
     corners_cross_to_corner: float = 0.389
     corners_raw_k: float = 6.0
+    # corners scale SUB-linearly with attack intensity (lam-sum). Round-1 WC2026
+    # review (ml/corners_round1_review.py): error vs lam-sum corr ~0, but softening
+    # 0.70->0.55 nudged O/U hit 18->19/27 and cut the +0.43 over-bias. Bounded,
+    # tunable as more matches land. NOTE: a mismatch favourite often wins WITHOUT
+    # racking up corners (ARG-ALG, USA-PAR) — the irreducible game-state variance
+    # the NB dispersion (1.96) already models.
+    corners_intensity_exp: float = 0.55
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4
 
