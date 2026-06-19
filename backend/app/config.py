@@ -223,6 +223,14 @@ class Settings(BaseSettings):
     # racking up corners (ARG-ALG, USA-PAR) — the irreducible game-state variance
     # the NB dispersion (1.96) already models.
     corners_intensity_exp: float = 0.55
+    # pre-match corner-form prior: seed each team's corner for/against rate from
+    # recent ESPN internationals (corner_form.json) so the corners model has
+    # team-specific data from match 1, not just base x intensity. Round-1 study
+    # (ml/corners_form_fit.py): the team corner-rate blend beats a flat base on
+    # 548 matches (O/U hit 59→62% holdout, MAE 3.85→3.57; CV +2pp) — small but
+    # consistent (corners are high-variance, corr 0.20). Blended via raw_k, capped
+    # prior weight, in-tournament data takes over as it accumulates.
+    corner_form_enabled: bool = True
     et_intensity: float = 0.85       # ET scoring intensity vs regulation
     pens_elo_tilt: float = 0.4
 

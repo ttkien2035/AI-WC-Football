@@ -1,0 +1,333 @@
+{
+ "window": 5,
+ "line": 9.5,
+ "league_mean_total": 9.26,
+ "model": "0.5*(cf+opp_ca) per side",
+ "n_fit": 548,
+ "corr_model_actual": 0.2,
+ "n_teams": 46,
+ "teams": {
+  "CIV": {
+   "name": "Ivory Coast",
+   "cf": 5.4,
+   "ca": 4.4,
+   "n": 5,
+   "as_of": "2026-06-04"
+  },
+  "GHA": {
+   "name": "Ghana",
+   "cf": 3.4,
+   "ca": 6.8,
+   "n": 5,
+   "as_of": "2026-06-02"
+  },
+  "CPV": {
+   "name": "Cape Verde",
+   "cf": 6.6,
+   "ca": 4.0,
+   "n": 5,
+   "as_of": "2026-05-31"
+  },
+  "EGY": {
+   "name": "Egypt",
+   "cf": 2.4,
+   "ca": 5.2,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "SEN": {
+   "name": "Senegal",
+   "cf": 7.2,
+   "ca": 5.2,
+   "n": 5,
+   "as_of": "2026-05-31"
+  },
+  "ALG": {
+   "name": "Algeria",
+   "cf": 4.6,
+   "ca": 4.8,
+   "n": 5,
+   "as_of": "2026-06-03"
+  },
+  "RSA": {
+   "name": "South Africa",
+   "cf": 4.2,
+   "ca": 2.2,
+   "n": 5,
+   "as_of": "2026-06-11"
+  },
+  "TUN": {
+   "name": "Tunisia",
+   "cf": 4.0,
+   "ca": 5.8,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "MAR": {
+   "name": "Morocco",
+   "cf": 5.8,
+   "ca": 5.4,
+   "n": 5,
+   "as_of": "2026-06-13"
+  },
+  "SCO": {
+   "name": "Scotland",
+   "cf": 4.4,
+   "ca": 5.2,
+   "n": 5,
+   "as_of": "2026-06-14"
+  },
+  "SUI": {
+   "name": "Switzerland",
+   "cf": 4.8,
+   "ca": 4.4,
+   "n": 5,
+   "as_of": "2026-06-13"
+  },
+  "GER": {
+   "name": "Germany",
+   "cf": 7.8,
+   "ca": 4.0,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "CRO": {
+   "name": "Croatia",
+   "cf": 5.8,
+   "ca": 3.4,
+   "n": 5,
+   "as_of": "2026-06-07"
+  },
+  "ESP": {
+   "name": "Spain",
+   "cf": 5.6,
+   "ca": 3.0,
+   "n": 5,
+   "as_of": "2026-06-09"
+  },
+  "ENG": {
+   "name": "England",
+   "cf": 7.0,
+   "ca": 2.8,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "NED": {
+   "name": "Netherlands",
+   "cf": 5.0,
+   "ca": 2.2,
+   "n": 5,
+   "as_of": "2026-06-08"
+  },
+  "AUT": {
+   "name": "Austria",
+   "cf": 3.6,
+   "ca": 3.0,
+   "n": 5,
+   "as_of": "2026-06-01"
+  },
+  "FRA": {
+   "name": "France",
+   "cf": 5.6,
+   "ca": 3.4,
+   "n": 5,
+   "as_of": "2026-06-08"
+  },
+  "BEL": {
+   "name": "Belgium",
+   "cf": 10.2,
+   "ca": 4.2,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "POR": {
+   "name": "Portugal",
+   "cf": 7.0,
+   "ca": 2.0,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "CZE": {
+   "name": "Czechia",
+   "cf": 3.6,
+   "ca": 3.4,
+   "n": 5,
+   "as_of": "2026-06-12"
+  },
+  "TUR": {
+   "name": "T\u00fcrkiye",
+   "cf": 9.0,
+   "ca": 2.8,
+   "n": 5,
+   "as_of": "2026-06-14"
+  },
+  "ARG": {
+   "name": "Argentina",
+   "cf": 4.8,
+   "ca": 3.6,
+   "n": 5,
+   "as_of": "2026-06-07"
+  },
+  "CAN": {
+   "name": "Canada",
+   "cf": 9.6,
+   "ca": 3.4,
+   "n": 5,
+   "as_of": "2026-06-12"
+  },
+  "MEX": {
+   "name": "Mexico",
+   "cf": 4.6,
+   "ca": 2.6,
+   "n": 5,
+   "as_of": "2026-06-11"
+  },
+  "ECU": {
+   "name": "Ecuador",
+   "cf": 3.2,
+   "ca": 3.8,
+   "n": 5,
+   "as_of": "2026-06-07"
+  },
+  "USA": {
+   "name": "United States",
+   "cf": 4.6,
+   "ca": 6.6,
+   "n": 5,
+   "as_of": "2026-06-13"
+  },
+  "URY": {
+   "name": "Uruguay",
+   "cf": 3.8,
+   "ca": 5.4,
+   "n": 5,
+   "as_of": "2026-03-27"
+  },
+  "PAN": {
+   "name": "Panama",
+   "cf": 0.6,
+   "ca": 3.2,
+   "n": 5,
+   "as_of": "2026-06-06"
+  },
+  "PAR": {
+   "name": "Paraguay",
+   "cf": 3.4,
+   "ca": 3.4,
+   "n": 5,
+   "as_of": "2026-06-13"
+  },
+  "BRA": {
+   "name": "Brazil",
+   "cf": 3.4,
+   "ca": 2.2,
+   "n": 5,
+   "as_of": "2026-06-13"
+  },
+  "COL": {
+   "name": "Colombia",
+   "cf": 5.0,
+   "ca": 4.0,
+   "n": 5,
+   "as_of": "2026-06-07"
+  },
+  "BIH": {
+   "name": "Bosnia-Herzegovina",
+   "cf": 3.4,
+   "ca": 4.4,
+   "n": 5,
+   "as_of": "2026-06-12"
+  },
+  "NOR": {
+   "name": "Norway",
+   "cf": 5.8,
+   "ca": 3.6,
+   "n": 5,
+   "as_of": "2026-06-07"
+  },
+  "SWE": {
+   "name": "Sweden",
+   "cf": 2.6,
+   "ca": 7.0,
+   "n": 5,
+   "as_of": "2026-06-04"
+  },
+  "KSA": {
+   "name": "Saudi Arabia",
+   "cf": 3.2,
+   "ca": 3.2,
+   "n": 5,
+   "as_of": "2026-06-05"
+  },
+  "HAI": {
+   "name": "Haiti",
+   "cf": 4.6,
+   "ca": 3.2,
+   "n": 5,
+   "as_of": "2026-06-14"
+  },
+  "CUW": {
+   "name": "Cura\u00e7ao",
+   "cf": 2.8,
+   "ca": 3.8,
+   "n": 5,
+   "as_of": "2026-05-30"
+  },
+  "UZB": {
+   "name": "Uzbekistan",
+   "cf": 5.8,
+   "ca": 3.2,
+   "n": 5,
+   "as_of": "2026-06-08"
+  },
+  "JPN": {
+   "name": "Japan",
+   "cf": 3.25,
+   "ca": 1.0,
+   "n": 4,
+   "as_of": "2026-05-31"
+  },
+  "IRN": {
+   "name": "Iran",
+   "cf": 0.0,
+   "ca": 0.0,
+   "n": 5,
+   "as_of": "2026-06-04"
+  },
+  "AUS": {
+   "name": "Australia",
+   "cf": 2.8,
+   "ca": 4.5,
+   "n": 5,
+   "as_of": "2026-06-14"
+  },
+  "JOR": {
+   "name": "Jordan",
+   "cf": 2.0,
+   "ca": 3.5,
+   "n": 4,
+   "as_of": "2026-06-07"
+  },
+  "KOR": {
+   "name": "South Korea",
+   "cf": 6.75,
+   "ca": 2.67,
+   "n": 4,
+   "as_of": "2026-06-12"
+  },
+  "NZL": {
+   "name": "New Zealand",
+   "cf": 3.33,
+   "ca": 5.67,
+   "n": 3,
+   "as_of": "2026-06-06"
+  },
+  "QAT": {
+   "name": "Qatar",
+   "cf": 3.0,
+   "ca": 5.5,
+   "n": 3,
+   "as_of": "2026-06-13"
+  }
+ }
+}

@@ -277,21 +277,51 @@ def adaptive_corners_base() -> float:
     return round((1 - w) * settings.corners_base + w * mean, 3)
 
 
+_CORNER_FORM_FILE = Path(__file__).resolve().parent / "data" / "models" / "corner_form.json"
+_corner_form_table = None
+CORNER_PRIOR_CAP = 4    # max games of confidence the ESPN pre-match prior carries
+
+
+def _corner_form() -> dict:
+    global _corner_form_table
+    if _corner_form_table is None:
+        try:
+            _corner_form_table = json.loads(_CORNER_FORM_FILE.read_text())
+        except Exception:
+            _corner_form_table = {}
+    return _corner_form_table
+
+
 def corner_rates(tla: str) -> dict | None:
-    """Per-team in-tournament corner profile: earned, conceded, and crosses
-    per game (the concede rate feeds the OPPONENT's expected corners)."""
+    """Per-team corner profile: earned, conceded, and crosses per game (the
+    concede rate feeds the OPPONENT's expected corners). In-tournament counts are
+    precision-blended with a recent-internationals PRIOR (corner_form.json, ESPN)
+    so the rate is team-specific from match 1; the prior fades as WC games land.
+    Validated small but consistent edge over a flat base (ml/corners_form_fit.py)."""
     hist, _ = cache.get_stale(f"teamstats:corners:{tla}")
-    if not hist:
-        return None
+    hist = hist or {}
     fors = [v["for"] for v in hist.values() if v.get("for") is not None]
     against = [v["against"] for v in hist.values() if v.get("against") is not None]
     crosses = [v["crosses"] for v in hist.values() if v.get("crosses") is not None]
-    if not fors:
+    prior = (_corner_form().get("teams") or {}).get(tla) if settings.corner_form_enabled else None
+    gp = min((prior or {}).get("n", 0), CORNER_PRIOR_CAP) if prior else 0
+    if not fors and not gp:
         return None
-    out = {"games": len(fors), "for_avg": sum(fors) / len(fors)}
-    if against:
-        out["against_avg"] = sum(against) / len(against)
-    if crosses:
+
+    def _blend(tourn: list, prior_val):
+        s = sum(tourn) + (prior_val * gp if prior_val is not None else 0.0)
+        w = len(tourn) + (gp if prior_val is not None else 0)
+        return s / w if w else None
+
+    out = {"games": len(fors) + gp}
+    fa = _blend(fors, prior.get("cf") if prior else None)
+    if fa is None:
+        return None
+    out["for_avg"] = fa
+    aa = _blend(against, prior.get("ca") if prior else None)
+    if aa is not None:
+        out["against_avg"] = aa
+    if crosses:                            # crosses: in-tournament only (ESPN cross data too noisy)
         out["cross_avg"] = sum(crosses) / len(crosses)
     return out
 
