@@ -132,6 +132,7 @@ export type Prediction = {
     runs: number;
   };
   volatility?: { ht_flip: number; level: "low" | "medium" | "high" };
+  win_confidence?: "toss_up" | "lean" | "clear";   // calibrated W/D/L pick reliability
 };
 
 export type ScoreP = { home: number; away: number; p: number };

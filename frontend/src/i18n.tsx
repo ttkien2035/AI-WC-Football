@@ -52,6 +52,7 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "match.pick_two": { vi: "Chọn hai đội khác nhau.", en: "Pick two different teams." },
   "match.empty": { vi: "Chọn hai đội rồi bấm", en: "Pick two teams and hit" },
   "match.win": { vi: "thắng", en: "win" },
+  "match.win_conf": { vi: "Độ tin cậy thắng-thua", en: "Result confidence" },
   "match.draw": { vi: "Hòa", en: "Draw" },
   "match.over25": { vi: "Tài 2.5", en: "Over 2.5" },
   "match.btts": { vi: "2 đội ghi bàn", en: "BTTS" },
