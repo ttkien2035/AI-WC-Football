@@ -744,10 +744,10 @@ async def predict(home: str, away: str, minute: int | None = None,
         g_ou = {"over": pred["over25"], "under": round(1 - pred["over25"], 4), "push": 0.0}
     c_mu = pred["corners"]["expected"]["total"]
 
-    def _conf(p: float) -> str:
+    def _conf(p: float, toss: float = 0.06, lean: float = 0.15) -> str:
         """How decisive the O/U lean is — honest about coin-flip fixtures."""
         edge = abs(p - 0.5)
-        return "toss_up" if edge < 0.06 else ("lean" if edge < 0.15 else "clear")
+        return "toss_up" if edge < toss else ("lean" if edge < lean else "clear")
 
     goals_ou = {"line": goals_line, **g_ou, "market": goals_prices,
                 "source": "market" if goals_prices else "default",
@@ -757,7 +757,10 @@ async def predict(home: str, away: str, minute: int | None = None,
                   "market": corners_prices,
                   "source": "market" if corners_prices else "default"}
     corners_ou["pick"] = "over" if corners_ou["over"] >= 0.5 else "under"
-    corners_ou["confidence"] = _conf(corners_ou["over"])
+    # WIDER band for corners: pre-match corners are ~95-99% match-specific noise
+    # (R²<0.04 vs goals; ml/corners_miss_analysis.py), so a given P(over) edge
+    # means far less — only call a lean/clear when the line is well off expected.
+    corners_ou["confidence"] = _conf(corners_ou["over"], toss=0.10, lean=0.22)
 
     # ---- Asian handicap (kèo chấp) from the SAME reconciled matrix ----------
     em = match_model.expected_margin(m_full)
