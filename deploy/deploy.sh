@@ -90,8 +90,19 @@ for f in backend/app/data/models/*; do
     fi
   fi
 done
+# 5c) FORCE-sync locally-fit priors that are refreshed from git (NOT produced by
+# the in-prod nightly retrain, so safe to overwrite — add-missing alone would
+# leave a stale copy shadowing the updated commit, e.g. a re-centered corner_form).
+FORCE_SYNC="corner_form.json shot_form.json"
+for name in $FORCE_SYNC; do
+  f="backend/app/data/models/$name"
+  [ -f "$f" ] || continue
+  if docker compose cp "$f" "backend:/app/app/data/models/$name" 2>/dev/null; then
+    echo "   ↻ force-synced $name"; added=1
+  fi
+done
 if [ -n "$added" ]; then
-  echo "==> New artifacts added — restarting backend ..."
+  echo "==> Artifacts changed — restarting backend ..."
   docker compose restart backend >/dev/null 2>&1 || true
   for _ in $(seq 1 30); do
     docker compose exec -T backend curl -sf http://localhost:8000/api/health >/dev/null 2>&1 && break
