@@ -715,6 +715,16 @@ async def predict(home: str, away: str, minute: int | None = None,
                       "medium" if flip >= 0.38 else "low"),
         }
 
+    # calibrated W/D/L confidence: the headline pick's reliability is the top
+    # probability, which IS well-calibrated (backtest n=1313: P_top≥0.60 hits
+    # 63%, ≥0.75 hits 89%). Surface a decisive label so a clear favourite reads
+    # "clear", not the coin-flip O/U enum. High in-match volatility softens it.
+    _pmax = max(pred["probs"].values())
+    _wc = "clear" if _pmax >= 0.60 else ("lean" if _pmax >= 0.50 else "toss_up")
+    if _wc == "clear" and (pred.get("volatility") or {}).get("level") == "high":
+        _wc = "lean"
+    pred["win_confidence"] = _wc
+
     # ---- Asian-line O/U: model % at the MARKET's actual lines ------------
     goals_line, goals_prices, corners_line, corners_prices = 2.5, None, 9.5, None
     try:

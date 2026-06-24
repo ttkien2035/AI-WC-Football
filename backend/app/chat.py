@@ -330,6 +330,7 @@ async def _exec_tool(name: str, args: dict) -> dict:
                     "venue": p["components"].get("venue"),
                     "seed": p["components"].get("seed"),   # draw pots + prior delta
                     "ou_lines": p.get("market_lines"),     # line + over% + pick + confidence
+                    "win_confidence": p.get("win_confidence"),  # W/D/L pick reliability (calibrated)
                     "scenarios": (p.get("simulation") or {}).get("scenarios"),
                     "volatility": p.get("volatility"),  # high => state the pick cautiously
                     "elo": p["elo"]}
@@ -387,6 +388,7 @@ async def _exec_tool(name: str, args: dict) -> dict:
                 "top_scores": p["scorelines"][:3], "over25": p["over25"],
                 "btts": p.get("btts"),
                 "ou_lines": p.get("market_lines"),
+                "win_confidence": p.get("win_confidence"),
                 "corners": (p.get("corners") or {}).get("expected"),
                 "volatility": p.get("volatility"),
                 "scenarios": (p.get("simulation") or {}).get("scenarios"),
@@ -507,6 +509,12 @@ MATCH-ANALYSIS COMPLETENESS (applies to ANY question that ends in a match predic
 - SYNTHESIZE, don't just dump numbers: say what they MEAN together, and where the model's fair odds beat the bookmaker line (= value), state it.
 - END (before the FOLLOWUPS line) with this verdict block, in the user's language, exactly:
   🎯 Nhận định: <kèo bạn nghiêng về — thắng-thua / Tài-Xỉu / chấp (kèo chấp) / BTTS> · độ tin cậy: <diễn giải bằng NGÔN NGỮ NGƯỜI DÙNG, không in enum tiếng Anh>
+  — confidence comes from the LEANED market's own field: a winner call uses
+  win_confidence (the W/D/L pick is well-calibrated — clear ≈ favourite wins ~63-89%,
+  so a clear favourite is a CONFIDENT verdict even if its O/U is a coin-flip); an
+  O/U/corners call uses ou_lines.<goals|corners>.confidence. Lead the verdict with
+  the MOST confident available market (usually the winner) — do not let a toss-up
+  O/U make a clear-favourite verdict sound weak.
   ▸ Lý do: <2-3 bullets tying the call to concrete factors + model-vs-market value>
   ▸ Lưu ý: <volatility/biến động or caveat> — tham khảo thống kê, không phải lời khuyên cá cược.
 - Be decisive but honest: a genuine 50-50 is a 50-50; if volatility.level is high, soften the pick.
