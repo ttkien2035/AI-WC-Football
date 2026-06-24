@@ -141,6 +141,21 @@ def main():
     c = np.corrcoef(rate_sum, M.total)[0, 1]
     print(f"corr(team corner-rate model, actual total) = {c:+.2f}")
 
+    # pick-balance: does model B over-pick UNDER vs the actual over/under rate?
+    pb = predict("B", M); act = M.total.values
+    mo = float(np.mean(pb > LINE)); ao = float(np.mean(act > LINE))
+    print(f"\npick balance @ {LINE}: model B picks OVER {mo*100:.0f}% vs actual OVER {ao*100:.0f}%"
+          f"  ({'model leans UNDER too much' if mo < ao-0.05 else 'ok'})")
+
+    # RE-CENTER the prior to the production base: ESPN under-counts corners
+    # (~8.6/match vs Sofascore/base ~9.1), which would bias the prior toward UNDER.
+    # Scale every team's cf/ca by base/observed-mean so the league level is right
+    # while keeping ESPN's TEAM-RELATIVE corner tendencies.
+    from app.config import settings
+    espn_match_mean = float(pd.read_csv(CSV).groupby("event_id")["corners"].sum().mean())
+    scale = settings.corners_base / espn_match_mean
+    print(f"re-center: ESPN {espn_match_mean:.2f}/match -> base {settings.corners_base} (scale x{scale:.3f})")
+
     # emit per-team corner-form table (for serving) keyed by WC TLA
     from app.static_data import TEAMS
     ALIAS = {"turkiye": "TUR", "cotedivoire": "CIV", "ivorycoast": "CIV",
@@ -154,10 +169,11 @@ def main():
     for team, (dt, cfv, cav, n) in latest.items():
         tla = name2tla.get(_norm(team))
         if tla:
-            teams[tla] = {"name": team, "cf": round(cfv, 2), "ca": round(cav, 2),
+            teams[tla] = {"name": team, "cf": round(cfv * scale, 2), "ca": round(cav * scale, 2),
                           "n": n, "as_of": dt}
-    art = {"window": W, "line": LINE, "league_mean_total": round(float(mu), 2),
-           "model": "0.5*(cf+opp_ca) per side", "n_fit": len(M),
+    art = {"window": W, "line": LINE, "league_mean_total": round(float(mu) * scale, 2),
+           "recenter_scale": round(scale, 3), "espn_raw_mean": round(espn_match_mean, 2),
+           "model": "0.5*(cf+opp_ca) per side, re-centered to base", "n_fit": len(M),
            "corr_model_actual": round(float(c), 3), "n_teams": len(teams), "teams": teams}
     OUT.write_text(json.dumps(art, indent=1))
     covered = sum(1 for t in TEAMS if t in teams)
