@@ -107,11 +107,13 @@ class Settings(BaseSettings):
     # Style/tactics interaction layer (literature-direction, bounded, audited
     # in-tournament via pipeline review)
     style_adjust_enabled: bool = True
-    # SHRUNK after a StatsBomb fit on 314 intl matches (ml/statsbomb_style_fit.py):
-    # match style (possession-balance, pressing) adds NOTHING to total goals
-    # beyond shot volume (p=0.29/0.38, both insignificant). Keep only a tiny
-    # literature-direction nudge, audited live by the factor scorecard.
-    style_total_max: float = 0.03   # was 0.06 — halved; data shows weak effect
+    # DISABLED 2026-06-25 after MD2: the style->O/U total nudge HURT the O/U Brier
+    # on real WC results, consistently across both rounds (factor_scorecard "style":
+    # MD1 +0.0058 n10, MD2 +0.0054 n20) — matching the original StatsBomb fit that
+    # found style adds NOTHING to total goals beyond shot volume (p=0.29/0.38). So
+    # the goal-total style multiplier is off; style still feeds W/D/L supremacy
+    # (style_sup, HELPING) + the minute sim. Re-enable by raising this if MD3 flips.
+    style_total_max: float = 0.0    # 0.06 -> 0.03 -> 0 (measured hurting on O/U)
     # style -> W/D/L supremacy. Same fit: possession dominance barely predicts
     # wins (r=+0.05, p=0.37; dominate 50% vs cede 37%). Shrunk from 18 -> 10.
     style_sup_enabled: bool = True
