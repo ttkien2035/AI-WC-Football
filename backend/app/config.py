@@ -127,10 +127,16 @@ class Settings(BaseSettings):
 
     # Match-context layer (final-group-game stakes / dead rubber / seeding)
     context_adjust_enabled: bool = True
-    context_dead_factor: float = 0.88     # both teams' fate settled -> fewer goals
-    context_decider_factor: float = 0.98  # both must-win -> mild knockout caution
+    # SHRUNK toward neutral 2026-06-28 after the full group stage: the group
+    # context layer (dead-rubber/decider/seeding goal cut) HURT the O/U Brier in
+    # MD3 (factor_scorecard "context" +0.019, n17) — "settled teams score fewer"
+    # over-fired (rotated/open dead rubbers often score normally-or-more). Group
+    # context can't recur this WC; gentle de-aggression is the correct direction
+    # (re-validate on history before trusting it). KO factors below unchanged.
+    context_dead_factor: float = 0.94     # was 0.88 — dead-rubber goal cut over-fired
+    context_decider_factor: float = 0.99  # was 0.98
     context_seeding_elo_gap: float = 60.0 # Elo edge to flag "finish 2nd to dodge"
-    context_seeding_factor: float = 0.97  # small: teams often still try to win
+    context_seeding_factor: float = 0.99  # was 0.97
     # Knockout caution escalates by stage (replaces flat ko_goal_factor);
     # big-mismatch ties: underdog locks down & plays for the shootout lottery
     context_ko_underdog_gap: float = 120.0  # Elo gap to flag "play for penalties"
