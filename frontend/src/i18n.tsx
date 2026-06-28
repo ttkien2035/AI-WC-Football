@@ -37,6 +37,14 @@ const DICT: Record<string, { vi: string; en: string }> = {
   "bracket.qf": { vi: "Tứ kết", en: "Quarter-finals" },
   "bracket.sf": { vi: "Bán kết", en: "Semi-finals" },
   "bracket.final": { vi: "Chung kết", en: "Final" },
+  "bracket.third": { vi: "Tranh hạng 3", en: "Third place" },
+  "bracket.ko_heading": { vi: "⚔️ Lịch & kết quả vòng knock-out", en: "⚔️ Knockout schedule & results" },
+  "bracket.ko_note": { vi: "Bấm trận đã có 2 đội để xem dự đoán. Đội thật cập nhật khi vòng trước kết thúc.", en: "Tap a fixture with both teams to see the prediction. Real teams fill in as each round finishes." },
+  "bracket.proj_heading": { vi: "🔮 Bracket dự phóng (mô phỏng)", en: "🔮 Projected bracket (simulation)" },
+  "bracket.tbd": { vi: "Chưa xác định", en: "TBD" },
+  "bracket.tap": { vi: "Chạm để xem dự đoán ▸", en: "Tap for prediction ▸" },
+  "bracket.ft": { vi: "Kết thúc", en: "FT" },
+  "bracket.win_pick": { vi: "Dự đoán thắng", en: "Predicted winner" },
 
   // Match Sim
   "match.setup": { vi: "Thiết lập trận đấu", en: "Match setup" },
