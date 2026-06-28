@@ -44,6 +44,25 @@ def _ninety_min_goals(mid: int):
     return g
 
 
+def _ninety_min_corners(mid: int):
+    """Count corner kicks (Pass type=Corner) in periods 1-2 from cached events."""
+    f = CACHE / f"ev_{mid}.json"
+    if not f.exists():
+        return None
+    try:
+        ev = json.loads(f.read_text())
+    except Exception:
+        return None
+    c = 0
+    for e in ev:
+        if (e.get("period") or 0) > 2:
+            continue
+        if (e.get("type") or {}).get("name") == "Pass" and \
+                ((e.get("pass") or {}).get("type") or {}).get("name") == "Corner":
+            c += 1
+    return c
+
+
 def main() -> None:
     matches = []
     for f in glob.glob(str(CACHE / "matches_*.json")):
@@ -92,6 +111,20 @@ def main() -> None:
         print(f"\n  [90-min, ET excluded, events available] KO n {len(n90)} goals {ko90:.2f}"
               f"  | Group n {len(grp90)} goals {st.mean(grp90):.2f}"
               + (f"  -> 90' ratio {ko90/st.mean(grp90):.3f}" if grp90 else ""))
+
+    # ---- CORNERS: KO vs group (90-min, from events) ----
+    def _corners(rows):
+        cs = [_ninety_min_corners(r["mid"]) for r in rows]
+        return [c for c in cs if c is not None]
+    ko_c, grp_c = _corners(cat["ko"]), _corners(cat["group"])
+    if ko_c and grp_c:
+        print(f"\n=== CORNERS (90-min) KO vs group ===")
+        print(f"  group corners/match {st.mean(grp_c):.2f} (n{len(grp_c)})  |  "
+              f"KO {st.mean(ko_c):.2f} (n{len(ko_c)})  -> ratio {st.mean(ko_c)/st.mean(grp_c):.3f}")
+        for s in STAGE_ORDER:
+            v = _corners(ko_by_stage.get(s, []))
+            if v:
+                print(f"    {s:18} corners {st.mean(v):.2f} (n{len(v)})")
 
     print("\n=== caginess by stage (escalation? model ko_stage_factors) ===")
     print("  model: R32 0.97 R16 0.95 QF 0.93 SF 0.91 3rd 0.97 Final 0.90")

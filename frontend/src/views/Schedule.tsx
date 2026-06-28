@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type Match } from "../api";
 import { Card, Flag } from "../components/ui";
 import { useLang, useT } from "../i18n";
@@ -12,9 +12,21 @@ export default function Schedule() {
   const [matches, setMatches] = useState<Match[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   const [groupPick, setGroupPick] = useState<string>("");
+  const autoDefault = useRef(false);
 
   useEffect(() => {
-    api.matches().then((d) => setMatches(d.matches)).catch(() => {});
+    api.matches().then((d) => {
+      setMatches(d.matches);
+      // once the group stage is fully played, default the view to the KNOCKOUT
+      // round (that's what's upcoming) — but only auto-set once, never override
+      // a manual pick.
+      if (!autoDefault.current) {
+        autoDefault.current = true;
+        const groupLeft = d.matches.some((m) => m.stage === "GROUP_STAGE" && m.status !== "FINISHED");
+        const koExists = d.matches.some((m) => m.stage !== "GROUP_STAGE");
+        if (!groupLeft && koExists) setFilter("ko");
+      }
+    }).catch(() => {});
   }, []);
 
   const filtered = useMemo(() => {

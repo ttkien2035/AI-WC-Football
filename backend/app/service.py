@@ -671,8 +671,16 @@ async def predict(home: str, away: str, minute: int | None = None,
     pred["halves"] = periods.halves(lam_h, lam_a, minute=minute,
                                     goals_h=hg, goals_a=ag, ht_h=ht_h, ht_a=ht_a)
     c_total_factor, c_total_reason = style_adjust.corners_total_factor(home, away)
+    # corners must NOT absorb the KO / context FINISHING caution: a cagey or
+    # locked-down tie still earns corners (deep blocks force wide play → crosses).
+    # StatsBomb KO corners ≈ group (ratio 0.979) despite the goal caution
+    # (ml/knockout_study.py), so feed corners the PRE-context λ (venue + team
+    # strength kept) — otherwise KO corners get spuriously under-predicted.
+    _ctxf = (ctx.get("factor") or 1.0) if minute is None else 1.0
+    lam_h_cor = lam_h / _ctxf if _ctxf else lam_h
+    lam_a_cor = lam_a / _ctxf if _ctxf else lam_a
     pred["corners"] = periods.corners(
-        lam_h, lam_a, eh, ea,
+        lam_h_cor, lam_a_cor, eh, ea,
         team_rates=(corner_rates(home), corner_rates(away)),
         minute=minute, corners_so_far=corners_now,
         score_diff=abs(hg - ag) if minute is not None else 0,
