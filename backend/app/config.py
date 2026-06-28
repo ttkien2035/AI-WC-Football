@@ -97,11 +97,18 @@ class Settings(BaseSettings):
     ml_only_w_form: float = 0.05
 
     # Score-model corrections (fitted from 49k-match history)
-    ko_goal_factor: float = 0.955   # knockout caginess, per-90 (WC 1986-2022)
-    # per-stage caginess multipliers (escalate toward the final)
+    # RECALIBRATED 2026-06-28 (ml/knockout_study.py, StatsBomb WC18/22+Euro+Copa+
+    # AFCON KO, 90-min goals, ET excluded): modern KO is NOT lower-scoring than
+    # group (KO 2.56 vs group 2.45, ratio 1.044) — the old blanket ~5-10% cut was
+    # over-applied. Genuine caginess sits at QF/SF (2.0-2.2); R16 (2.73) and
+    # FINALS (3.10!) are OPEN, so the old "Final lowest 0.90" was backwards (team
+    # λ already captures the strong finalists). Pulled toward neutral, keeping a
+    # mild QF/SF dip. Small-n + selection confound → conservative; re-grade on the
+    # live WC-2026 KO via the review scripts.
+    ko_goal_factor: float = 0.98    # was 0.955 — flat fallback (used by the sim)
     ko_stage_factors: dict = {
-        "LAST_32": 0.97, "LAST_16": 0.95, "QUARTER_FINALS": 0.93,
-        "SEMI_FINALS": 0.91, "THIRD_PLACE": 0.97, "FINAL": 0.90,
+        "LAST_32": 0.99, "LAST_16": 0.99, "QUARTER_FINALS": 0.95,
+        "SEMI_FINALS": 0.94, "THIRD_PLACE": 0.98, "FINAL": 0.98,
     }
 
     # Style/tactics interaction layer (literature-direction, bounded, audited
