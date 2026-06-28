@@ -208,7 +208,10 @@ def _surprise_tag(correct: bool, p_actual: float, p_pick: float) -> str:
     return "near_miss"
 
 
-async def review(limit: int = 104) -> dict:    # default: the whole tournament
+async def review(limit: int = 104, light: bool = False) -> dict:    # default: whole tournament
+    # light=True (public /evaluate/tournament): skip the per-match elo_shift
+    # (O(n²) Elo recompute) + h2h/narrative/improve, none of which the public
+    # endpoint returns — cuts the call from ~1.3s to ~0.2s.
     matches = await service.get_matches()
     finished = [m for m in matches
                 if m["status"] == "FINISHED" and m["home"]["tla"]
@@ -252,7 +255,7 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
         entry = (h, a, gh, ga)
         idx = all_t.index(entry) if entry in all_t else None
         elo_shift = None
-        if idx is not None:
+        if idx is not None and not light:
             before = ml_ensemble.elo_by_tla(all_t[:idx]) or {}
             after = ml_ensemble.elo_by_tla(all_t[:idx + 1]) or {}
             if h in before and h in after and a in before and a in after:
@@ -287,64 +290,63 @@ async def review(limit: int = 104) -> dict:    # default: the whole tournament
             "corners": _corners_ou_verdict(pm, c_exp, c_total, corners),
         }
 
-        notes = []
-        if compare["score"]["hit"]:
-            notes.append({"key": "n_exact_score", "params": {}})
-        elif correct:
-            notes.append({"key": "n_winner_hit", "params": {"p": round(probs[pick], 2)}})
-        else:
-            notes.append({"key": "n_winner_miss",
-                          "params": {"pred": pick, "p_actual": round(p_actual, 2)}})
-        if exp_goals is not None and abs(total_goals - exp_goals) >= 1.5:
-            notes.append({"key": "n_goals_off",
-                          "params": {"xg": round(exp_goals, 1), "actual": total_goals}})
-        if c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
-            notes.append({"key": "n_corners_off",
-                          "params": {"pred": round(c_exp, 1), "actual": c_total}})
-        if (pm or {}).get("absence"):
-            notes.append({"key": "n_absence", "params": {}})
-        rc = m.get("red_cards") or {}
-        if (rc.get("home") or 0) + (rc.get("away") or 0) > 0 or \
-                ((stats or {}).get("reds") and ((stats["reds"].get("home") or 0)
-                                                + (stats["reds"].get("away") or 0)) > 0):
-            notes.append({"key": "n_red_cards", "params": {}})
         ht = m.get("ht_score") or log_e.get("ht_score")
-        if ht and ht.get("home") is not None and (
-                ("home" if ht["home"] > ht["away"] else
-                 "draw" if ht["home"] == ht["away"] else "away") != actual):
-            notes.append({"key": "n_ht_swing", "params": {}})
+        notes, improve = [], None
+        if not light:        # narrative + h2h skipped on the fast public path
+            if compare["score"]["hit"]:
+                notes.append({"key": "n_exact_score", "params": {}})
+            elif correct:
+                notes.append({"key": "n_winner_hit", "params": {"p": round(probs[pick], 2)}})
+            else:
+                notes.append({"key": "n_winner_miss",
+                              "params": {"pred": pick, "p_actual": round(p_actual, 2)}})
+            if exp_goals is not None and abs(total_goals - exp_goals) >= 1.5:
+                notes.append({"key": "n_goals_off",
+                              "params": {"xg": round(exp_goals, 1), "actual": total_goals}})
+            if c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
+                notes.append({"key": "n_corners_off",
+                              "params": {"pred": round(c_exp, 1), "actual": c_total}})
+            if (pm or {}).get("absence"):
+                notes.append({"key": "n_absence", "params": {}})
+            rc = m.get("red_cards") or {}
+            if (rc.get("home") or 0) + (rc.get("away") or 0) > 0 or \
+                    ((stats or {}).get("reds") and ((stats["reds"].get("home") or 0)
+                                                    + (stats["reds"].get("away") or 0)) > 0):
+                notes.append({"key": "n_red_cards", "params": {}})
+            if ht and ht.get("home") is not None and (
+                    ("home" if ht["home"] > ht["away"] else
+                     "draw" if ht["home"] == ht["away"] else "away") != actual):
+                notes.append({"key": "n_ht_swing", "params": {}})
 
-        # ---- match-specific narrative: history + style + manager + context ----
-        from .engine.style_adjust import MANAGER_NOTES, _tags
-        from .team_profiles import PROFILES
-        try:
-            hh = evaluation.h2h(h, a, n=6)
-            if hh.get("summary"):
-                notes.append({"key": "n_h2h", "params": {
-                    "c": hh["summary"]["correct"], "n": hh["summary"]["n"]}})
-        except Exception:
-            pass
-        th, ta = _tags(h), _tags(a)
-        if th and ta:
-            both_def = bool(th & {"low_block", "counter"}) and bool(ta & {"low_block", "counter"})
-            if both_def and total_goals >= 3:
-                notes.append({"key": "n_style_open_surprise", "params": {}})
-            elif both_def:
-                notes.append({"key": "n_style_cagey", "params": {}})
-        mgr = [MANAGER_NOTES[t] for t in (h, a) if t in MANAGER_NOTES]
-        if mgr:
-            notes.append({"key": "n_manager", "params": {"note": " · ".join(mgr)}})
+            # ---- match-specific narrative: history + style + manager + context ----
+            from .engine.style_adjust import MANAGER_NOTES, _tags
+            try:
+                hh = evaluation.h2h(h, a, n=6)
+                if hh.get("summary"):
+                    notes.append({"key": "n_h2h", "params": {
+                        "c": hh["summary"]["correct"], "n": hh["summary"]["n"]}})
+            except Exception:
+                pass
+            th, ta = _tags(h), _tags(a)
+            if th and ta:
+                both_def = bool(th & {"low_block", "counter"}) and bool(ta & {"low_block", "counter"})
+                if both_def and total_goals >= 3:
+                    notes.append({"key": "n_style_open_surprise", "params": {}})
+                elif both_def:
+                    notes.append({"key": "n_style_cagey", "params": {}})
+            mgr = [MANAGER_NOTES[t] for t in (h, a) if t in MANAGER_NOTES]
+            if mgr:
+                notes.append({"key": "n_manager", "params": {"note": " · ".join(mgr)}})
 
-        # ---- improvement suggestion keyed to the dominant miss ----
-        improve = None
-        if not correct and m["stage"] == "GROUP_STAGE":
-            improve = "imp_motivation" if p_actual < 0.3 else "imp_winner"
-        elif exp_goals is not None and abs(total_goals - exp_goals) >= 2:
-            improve = "imp_goals"
-        elif c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
-            improve = "imp_corners"
-        elif not correct:
-            improve = "imp_winner"
+            # ---- improvement suggestion keyed to the dominant miss ----
+            if not correct and m["stage"] == "GROUP_STAGE":
+                improve = "imp_motivation" if p_actual < 0.3 else "imp_winner"
+            elif exp_goals is not None and abs(total_goals - exp_goals) >= 2:
+                improve = "imp_goals"
+            elif c_exp is not None and c_total is not None and abs(c_total - c_exp) >= 4:
+                improve = "imp_corners"
+            elif not correct:
+                improve = "imp_winner"
 
         rows.append({
             "match_id": m["id"], "date": m["utcDate"], "stage": m["stage"],

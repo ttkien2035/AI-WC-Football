@@ -79,7 +79,7 @@ async def results(n: int = Query(default=10, ge=1, le=104)):
 async def evaluate_tournament():
     """Public verdicts for THIS tournament's finished matches: what the model
     predicted pre-match vs what happened (subset of the admin review)."""
-    rev = await pipeline.review()
+    rev = await pipeline.review(light=True)
     public = [
         {k: r[k] for k in ("match_id", "date", "stage", "home", "away", "score",
                            "ht_score", "probs", "predicted", "actual", "correct",

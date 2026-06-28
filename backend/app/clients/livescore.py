@@ -8,6 +8,7 @@ personal localhost use; do not hammer (TTL-cached, scheduler-paced).
 What it adds over fd.org free tier: real live MINUTE, half-time scores, and
 in-match statistics (corners) used to calibrate the corners model.
 """
+import asyncio
 import re
 from datetime import datetime, timezone
 
@@ -300,26 +301,35 @@ async def match_stats(eid) -> dict | None:
     return stats or None
 
 
+async def _enrich_event(ev: dict) -> tuple[frozenset, dict]:
+    """Build one event's enrichment — its per-match LiveScore fetches run
+    concurrently (gather) instead of serially."""
+    entry = dict(ev)
+    if ev["live"] or ev["finished"]:
+        venue, stats, incs, lu = await asyncio.gather(
+            match_venue(ev["eid"]), match_stats(ev["eid"]),
+            incidents(ev["eid"]), lineups(ev["eid"]))
+        entry["stats"] = stats
+        entry["corners"] = (stats or {}).get("corners")
+        entry["incidents"] = incs
+        entry["red_cards"] = {
+            "home": sum(1 for i in incs if i["type"] == "red" and i["side"] == "home"),
+            "away": sum(1 for i in incs if i["type"] == "red" and i["side"] == "away"),
+        }
+    else:
+        venue, lu = await asyncio.gather(match_venue(ev["eid"]), lineups(ev["eid"]))
+    entry["venue"] = venue
+    entry["lineups"] = lu                              # None until announced
+    return frozenset({ev["home_tla"], ev["away_tla"]}), entry
+
+
 async def enrichment() -> dict[frozenset, dict]:
     """{frozenset({tla,tla}): {minute, score, ht_score, corners, incidents,
-    red_cards, lineups, live}}"""
-    out = {}
-    for ev in await wc_events_today():
-        entry = dict(ev)
-        entry["venue"] = await match_venue(ev["eid"])   # cached 7d, static
-        if ev["live"] or ev["finished"]:
-            stats = await match_stats(ev["eid"])
-            entry["stats"] = stats
-            entry["corners"] = (stats or {}).get("corners")
-            incs = await incidents(ev["eid"])
-            entry["incidents"] = incs
-            entry["red_cards"] = {
-                "home": sum(1 for i in incs if i["type"] == "red" and i["side"] == "home"),
-                "away": sum(1 for i in incs if i["type"] == "red" and i["side"] == "away"),
-            }
-        entry["lineups"] = await lineups(ev["eid"])   # None until announced
-        out[frozenset({ev["home_tla"], ev["away_tla"]})] = entry
-    return out
+    red_cards, lineups, live}} — all events enriched CONCURRENTLY (was a serial
+    loop of per-match fetches → ~7s cold; gather collapses it to ~one round-trip)."""
+    evs = await wc_events_today()
+    pairs = await asyncio.gather(*[_enrich_event(ev) for ev in evs])
+    return dict(pairs)
 
 
 async def status() -> dict:
