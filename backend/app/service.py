@@ -948,14 +948,15 @@ async def analysis(home: str, away: str) -> dict:
     lu_a = lu.get("home" if flipped else "away")
 
     out = {}
-    for tla, lu_side in ((home, lu_h), (away, lu_a)):
+    # fetch both squads CONCURRENTLY (independent fd calls) instead of serially
+    squads = await asyncio.gather(
+        *(fd.team_squad(teams[t]["id"]) for t in (home, away)), return_exceptions=True)
+    from .engine.style_adjust import MANAGER_NOTES
+    for (tla, lu_side), squad in zip(((home, lu_h), (away, lu_a)), squads):
+        if isinstance(squad, Exception) or squad is None:
+            squad = []
         prof = dict(team_profiles.PROFILES.get(tla, {}))
         pen, kps = team_profiles.absence_penalty(tla, (lu_side or {}).get("players"))
-        try:
-            squad = await fd.team_squad(teams[tla]["id"])
-        except Exception:
-            squad = []
-        from .engine.style_adjust import MANAGER_NOTES
         out[tla] = {
             "profile": prof,
             "manager_note": MANAGER_NOTES.get(tla),
@@ -985,12 +986,13 @@ async def sources_status() -> dict:
         }
     except Exception as e:
         out["football_data"] = {"ok": False, "error": str(e)}
-    _, elo_source = await elo_client.ratings()
+    # independent status probes — run concurrently
+    (_, elo_source), (_, odds_source), ls_status = await asyncio.gather(
+        elo_client.ratings(), odds_client.market_probs(), livescore.status())
     out["elo"] = {"ok": True, "source": elo_source}
-    _, odds_source = await odds_client.market_probs()
     out["odds"] = {"ok": odds_source in ("live", "stale"), "source": odds_source}
     out["fifa_ranking"] = {"ok": True, "source": "static snapshot (Dec 2025)"}
-    out["livescore"] = await livescore.status()
+    out["livescore"] = ls_status
     rep = ml_ensemble.report()
     out["ml_ensemble"] = (
         {"ok": True, "test_rps": rep["test_metrics"]["ENSEMBLE"]["rps"],
