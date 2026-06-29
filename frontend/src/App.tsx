@@ -18,7 +18,7 @@ import ChatWidget from "./components/ChatWidget";
 export default function App() {
   const t = useT();
   const { lang, setLang } = useLang();
-  const [tab, setTab] = useState("groups");
+  const [tab, setTab] = useState("match");   // default landing tab: Match prediction
   const [isAdmin, setIsAdmin] = useState(false);
 
   // validate stored admin token once on boot
@@ -52,7 +52,7 @@ export default function App() {
   const adminLogout = () => {
     adminToken.clear();
     setIsAdmin(false);
-    setTab("groups");
+    setTab("match");
   };
 
   const TABS = [
