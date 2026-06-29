@@ -33,23 +33,29 @@ def _tla(name: str) -> str | None:
 KEY_COOLDOWN_S = 24 * 3600   # monthly quota: re-probe exhausted keys daily
 
 
+def _cooldown_key(key: str) -> str:
+    # keyed by the KEY string (not its index) so rotating in fresh keys auto-clears
+    # the cooldown — an index-based marker would wrongly skip a new key at that slot.
+    return f"odds:cooldown:{key[-8:]}"
+
+
 def _available_keys() -> list[tuple[int, str]]:
     keys = settings.odds_keys()
     fresh = []
     import time
     for i, k in enumerate(keys):
-        ts, _ = cache.get_stale(f"odds:cooldown:{i}")
+        ts, _ = cache.get_stale(_cooldown_key(k))
         if ts and time.time() - float(ts) < KEY_COOLDOWN_S:
             continue
         fresh.append((i, k))
     return fresh or list(enumerate(keys))
 
 
-def _mark_exhausted(idx: int) -> None:
+def _mark_exhausted(idx: int, key: str) -> None:
     import logging, time
     logging.getLogger("odds").warning(
         "odds key #%d quota-exhausted — cooling down 24h", idx)
-    cache.put(f"odds:cooldown:{idx}", time.time())
+    cache.put(_cooldown_key(key), time.time())
 
 
 def _is_quota_error(r: httpx.Response) -> bool:
@@ -77,7 +83,7 @@ async def _api_get(path: str, params: dict):
             r = await client.get(f"{settings.odds_base}{path}",
                                  params={"apiKey": key, **params})
             if _is_quota_error(r):
-                _mark_exhausted(idx)
+                _mark_exhausted(idx, key)
                 last_exc = httpx.HTTPStatusError(
                     "quota", request=r.request, response=r)
                 continue
